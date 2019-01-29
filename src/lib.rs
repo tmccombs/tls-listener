@@ -8,6 +8,7 @@
 
 use futures::{Async, Future, Poll, Stream, Sink, try_ready};
 use futures::sync::mpsc::{channel, Sender, Receiver};
+use native_tls::{TlsAcceptorBuilder, Identity, Protocol};
 use tokio_executor::spawn;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_tls::{TlsAcceptor, TlsStream};
@@ -42,6 +43,14 @@ pub struct TlsListener<I> where I: Stream {
     tx: Sender<StreamItem<I::Item>>,
     max_pending: usize,
     pending_connections: usize,
+}
+
+/**
+ * A builder for `TlsListener`.
+ */
+pub struct Builder {
+    tls: TlsAcceptorBuilder,
+    max_pending: usize,
 }
 
 /**
@@ -152,5 +161,59 @@ where I: Stream,
         }
     }
 }
+
+const DEFAULT_MAX_PENDING: usize = 16;
+
+impl Builder {
+    /**
+     * Create a new builder for a `TlsListener`.
+     *
+     * The `identity` acts as the server's private key/certificate chain.
+     */
+    pub fn new(identity: Identity) -> Self {
+        Builder {
+            tls: native_tls::TlsAcceptor::builder(identity),
+            max_pending: DEFAULT_MAX_PENDING
+        }
+    }
+
+    /**
+     * Sets the minimum supported TLS protocol version.
+     */
+    pub fn min_protocol_version(&mut self, protocol: Option<Protocol>) -> &mut Self {
+        self.tls.min_protocol_version(protocol);
+        self
+    }
+
+    /**
+     * Sets the maximum supported TLS protocol version.
+     */
+    pub fn max_protocol_version(&mut self, protocol: Option<Protocol>) -> &mut Self {
+        self.tls.max_protocol_version(protocol);
+        self
+    }
+
+    /**
+     * Set the maximum number of connections to accept from the underlying source while waiting
+     * for a TLS handshake to complete.
+     */
+    pub fn max_pending_connections(&mut self, max: usize) -> &mut Self {
+        self.max_pending = max;
+        self
+    }
+
+    /**
+     * Build a new `TlsListener`.
+     *
+     * `incoming` is the underlying stream of incoming connections.
+     */
+    pub fn build<I>(&self, incoming: I) -> native_tls::Result<TlsListener<I>>
+    where I: Stream,
+          I::Item: AsyncRead + AsyncWrite + Send,
+    {
+        self.tls.build().map(|tls| TlsListener::new(incoming, tls.into(), self.max_pending))
+    }
+}
+
 
 

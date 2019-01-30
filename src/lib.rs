@@ -6,13 +6,13 @@
 //! as for each new connection in a source of new streams (such as a listening
 //! TCP or unix domain socket).
 
-use futures::{Async, Future, Poll, Stream, Sink, try_ready};
-use futures::sync::mpsc::{channel, Sender, Receiver};
-use native_tls::{TlsAcceptorBuilder, Identity, Protocol};
+use futures::sync::mpsc::{channel, Receiver, Sender};
+use futures::{try_ready, Async, Future, Poll, Sink, Stream};
+use native_tls::{Identity, Protocol, TlsAcceptorBuilder};
+use std::fmt;
 use tokio_executor::spawn;
 use tokio_io::{AsyncRead, AsyncWrite};
 use tokio_tls::{TlsAcceptor, TlsStream};
-use std::fmt;
 
 type StreamItem<S> = Result<TlsStream<S>, native_tls::Error>;
 
@@ -36,7 +36,10 @@ type StreamItem<S> = Result<TlsStream<S>, native_tls::Error>;
  * `TlsStream` connections may come in a different order than the connections produced by the
  * underlying listener.
  */
-pub struct TlsListener<I> where I: Stream {
+pub struct TlsListener<I>
+where
+    I: Stream,
+{
     listener: I,
     tls: TlsAcceptor,
     rcv: Receiver<StreamItem<I::Item>>,
@@ -67,10 +70,13 @@ pub enum Error<E> {
     /**
      * An error that occured while accepting a new connection. This
      */
-    Accept(E)
+    Accept(E),
 }
 
-impl<E> fmt::Display for Error<E> where E: fmt::Display {
+impl<E> fmt::Display for Error<E>
+where
+    E: fmt::Display,
+{
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::Tls(err) => err.fmt(fmt),
@@ -79,7 +85,10 @@ impl<E> fmt::Display for Error<E> where E: fmt::Display {
     }
 }
 
-impl<E> ::std::error::Error for Error<E> where E: ::std::error::Error + 'static {
+impl<E> ::std::error::Error for Error<E>
+where
+    E: ::std::error::Error + 'static,
+{
     fn source(&self) -> Option<&(dyn ::std::error::Error + 'static)> {
         match self {
             Error::Tls(err) => Some(err),
@@ -88,14 +97,16 @@ impl<E> ::std::error::Error for Error<E> where E: ::std::error::Error + 'static 
     }
 }
 
-
 impl<E> From<native_tls::Error> for Error<E> {
-    fn from(err: native_tls::Error) -> Self { Error::Tls(err) }
+    fn from(err: native_tls::Error) -> Self {
+        Error::Tls(err)
+    }
 }
 
 impl<I> TlsListener<I>
-where I: Stream,
-      I::Item: AsyncRead + AsyncWrite + Send,
+where
+    I: Stream,
+    I::Item: AsyncRead + AsyncWrite + Send,
 {
     /**
      * Create a new `TlsListener`
@@ -125,8 +136,9 @@ where I: Stream,
 }
 
 impl<I> Stream for TlsListener<I>
-where I: Stream,
-      I::Item: AsyncRead + AsyncWrite + Send + 'static,
+where
+    I: Stream,
+    I::Item: AsyncRead + AsyncWrite + Send + 'static,
 {
     type Item = TlsStream<I::Item>;
     type Error = Error<I::Error>;
@@ -138,31 +150,32 @@ where I: Stream,
                 Async::Ready(Some(stream)) => {
                     self.pending_connections -= 1;
                     return Ok(Async::Ready(Some(stream?)));
-                },
-                Async::NotReady => if self.pending_connections < self.max_pending {
-                    if let Some(conn) = try_ready!(self.listener.poll().map_err(Error::Accept)) {
-                        let accept = self.tls.accept(conn);
-                        let tx = self.tx.clone();
-                        self.pending_connections += 1;
-                        spawn(accept.then(move |result| {
-                            tx.send(result)
-                        }).then(|_| Ok(())))
+                }
+                Async::NotReady => {
+                    if self.pending_connections < self.max_pending {
+                        if let Some(conn) = try_ready!(self.listener.poll().map_err(Error::Accept))
+                        {
+                            let accept = self.tls.accept(conn);
+                            let tx = self.tx.clone();
+                            self.pending_connections += 1;
+                            spawn(accept.then(move |result| tx.send(result)).then(|_| Ok(())))
+                        } else {
+                            // this is unlikely to happen
+                            return Ok(Async::Ready(None));
+                        }
                     } else {
-                        // this is unlikely to happen
-                        return Ok(Async::Ready(None));
+                        // We've filled up the queue of connections that still need a tls handshake,
+                        // so return not-ready
+                        return Ok(Async::NotReady);
                     }
-                } else {
-                    // We've filled up the queue of connections that still need a tls handshake,
-                    // so return not-ready
-                    return Ok(Async::NotReady);
-                },
+                }
                 Async::Ready(None) => unreachable!(),
             }
         }
     }
 }
 
-const DEFAULT_MAX_PENDING: usize = 16;
+const DEFAULT_MAX_PENDING: usize = 64;
 
 impl Builder {
     /**
@@ -173,7 +186,7 @@ impl Builder {
     pub fn new(identity: Identity) -> Self {
         Builder {
             tls: native_tls::TlsAcceptor::builder(identity),
-            max_pending: DEFAULT_MAX_PENDING
+            max_pending: DEFAULT_MAX_PENDING,
         }
     }
 
@@ -208,12 +221,12 @@ impl Builder {
      * `incoming` is the underlying stream of incoming connections.
      */
     pub fn build<I>(&self, incoming: I) -> native_tls::Result<TlsListener<I>>
-    where I: Stream,
-          I::Item: AsyncRead + AsyncWrite + Send,
+    where
+        I: Stream,
+        I::Item: AsyncRead + AsyncWrite + Send,
     {
-        self.tls.build().map(|tls| TlsListener::new(incoming, tls.into(), self.max_pending))
+        self.tls
+            .build()
+            .map(|tls| TlsListener::new(incoming, tls.into(), self.max_pending))
     }
 }
-
-
-

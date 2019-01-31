@@ -129,7 +129,7 @@ where
             tls,
             rcv,
             tx,
-            max_pending: max_pending,
+            max_pending,
             pending_connections: 0,
         }
     }

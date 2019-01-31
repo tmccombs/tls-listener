@@ -9,7 +9,7 @@ fn hello_world(_req: Request<Body>) -> Response<Body> {
     Response::new(Body::from("Hello, World!"))
 }
 
-const CERT: &'static [u8] = include_bytes!("certificate.p12");
+const CERT: &[u8] = include_bytes!("certificate.p12");
 
 fn main() -> Result<(), Box<std::error::Error>> {
     let addr = ([127, 0, 0, 1], 3000).into();

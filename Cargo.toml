@@ -2,6 +2,7 @@
 name = "tls-listener"
 version = "0.1.0"
 authors = ["Thayne McCombs <astrothayne@gmail.com>"]
+repository = "https://github.com/tmccombs/tls-listener"
 edition = "2018"
 
 [dependencies]

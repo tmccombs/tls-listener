@@ -8,6 +8,9 @@ edition = "2018"
 license = "Apache-2.0"
 license-file = "LICENSE"
 
+[badges]
+travis-ci = { repository = "tmccombs/tls-listener" }
+
 [dependencies]
 futures = "0.1.25"
 native-tls = "0.2"

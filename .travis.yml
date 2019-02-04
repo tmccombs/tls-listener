@@ -17,7 +17,7 @@ notifications:
   email:
     on_success: never
 before_script:
-  - rustup component add clippy fmt
+  - rustup component add clippy rustfmt
 script:
   - cargo build --verbose --examples
   - cargo test --verbose

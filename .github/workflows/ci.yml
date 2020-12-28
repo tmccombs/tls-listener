@@ -1,0 +1,33 @@
+name: CI
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - *.md
+  pull_request:
+
+jobs:
+  runs-on: ubuntu-latest
+  strategy:
+    matrix:
+      rust: [stable, beta, nightly]
+  continue-on-error: ${{ matrix.rust == 'nightly' }}
+  steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+        override: true
+        profile: minimal
+        components: rustfmt, clippy
+    - name: Build
+      run: cargo build --verbose --examples
+    - name: Test
+      run: cargo test --verbose
+    - name: Lint
+      run: cargo clippy --examples
+    - name: Format check
+      run: cargo fmt -- --check
+
+

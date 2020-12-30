@@ -1,38 +1,39 @@
-use futures::{Future, Stream};
-use native_tls::Identity;
-use tls_listener::Builder as TlsListenerBuilder;
-use tokio::executor::spawn;
-use tokio::io::{copy, AsyncRead};
+use futures_util::StreamExt;
+use std::net::SocketAddr;
+use tls_listener::TlsListener;
+use tokio::io::{copy, split};
 use tokio::net::{TcpListener, TcpStream};
-use tokio_tls::TlsStream;
+use tokio_rustls::server::TlsStream;
 
-const CERT: &[u8] = include_bytes!("certificate.p12");
+mod tls_config;
+use tls_config::tls_config;
 
 #[inline]
-fn handle_stream(stream: TlsStream<TcpStream>) -> impl Future<Item = (), Error = ()> {
-    let (reader, writer) = stream.split();
-    copy(reader, writer)
-        .map(|(cnt, _, _)| {
-            eprintln!("Processed {} bytes", cnt);
-        })
-        .map_err(|err| {
-            eprintln!("Error: {}", err);
-        })
+async fn handle_stream(stream: TlsStream<TcpStream>) {
+    let (mut reader, mut writer) = split(stream);
+    match copy(&mut reader, &mut writer).await {
+        Ok(cnt) => eprintln!("Processed {} bytes", cnt),
+        Err(err) => eprintln!("Error: {}", err),
+    };
 }
 
-fn main() -> Result<(), Box<std::error::Error>> {
-    let addr = ([127, 0, 0, 1], 3000).into();
-    let identity = Identity::from_pkcs12(CERT, "")?;
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let addr: SocketAddr = ([127, 0, 0, 1], 3000).into();
 
-    let listener = TcpListener::bind(&addr)?;
+    let listener = TcpListener::bind(&addr).await?;
 
-    let server = TlsListenerBuilder::new(identity)
-        .build(listener.incoming())?
-        .map_err(|err| {
-            eprintln!("Error: {}", err);
+    TlsListener::new(listener, tls_config(), 64)
+        .for_each_concurrent(None, |s| async {
+            match s {
+                Ok(stream) => {
+                    handle_stream(stream).await;
+                }
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                }
+            }
         })
-        .for_each(|stream| spawn(handle_stream(stream)));
-
-    tokio::run(server);
+        .await;
     Ok(())
 }

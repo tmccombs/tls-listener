@@ -7,7 +7,6 @@ use hyper::server::conn::{AddrIncoming, Http};
 use hyper::service::service_fn;
 use hyper::{Body, Response};
 use std::convert::Infallible;
-use tls_listener::TlsListener;
 
 mod tls_config;
 use tls_config::tls_config;
@@ -15,7 +14,7 @@ use tls_config::tls_config;
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let addr = ([127, 0, 0, 1], 3000).into();
-    let listener = TlsListener::new(AddrIncoming::bind(&addr).unwrap(), tls_config(), 32);
+    let listener = tls_listener::builder(tls_config()).max_handshakes(10).listen(AddrIncoming::bind(&addr).unwrap());
 
     let svc =
         service_fn(|_| async { Ok::<_, Infallible>(Response::new(Body::from("Hello, World!"))) });

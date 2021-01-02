@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let listener = TcpListener::bind(&addr).await?;
 
-    TlsListener::new(listener, tls_config(), 64)
+    TlsListener::new(tls_config(), listener)
         .for_each_concurrent(None, |s| async {
             match s {
                 Ok(stream) => {

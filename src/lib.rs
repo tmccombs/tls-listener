@@ -10,15 +10,23 @@
 use futures_util::stream::{FuturesUnordered, Stream, StreamExt};
 use pin_project::pin_project;
 use std::error::Error;
+use std::future::Future;
 use std::io;
 use std::marker::Unpin;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::time::{timeout, Timeout};
 use tokio_rustls::rustls::ServerConfig;
 use tokio_rustls::server::TlsStream;
 use tokio_rustls::TlsAcceptor;
+
+/// Default number of concurrent handshakes
+pub const DEFAULT_MAX_HANDSHAKES: usize = 64;
+/// Default timeout for the TLS handshake.
+pub const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_millis(200);
 
 /// Asynchronously accept connections.
 pub trait AsyncAccept {
@@ -47,11 +55,6 @@ pub trait AsyncAccept {
 /// except that it has the ability to accept multiple transport-level connections
 /// simultaneously while the TLS handshake is pending for other connections.
 ///
-/// At most `buffer_size` connections will be accepted from `listener` and buffered while waiting
-/// for the TLS handshake to complete.
-///
-/// The configuration for the TLS session comes from the `tls` argument.
-///
 /// Note that if the maximum number of pending connections is greater than 1, the resulting
 /// `TlsStream` connections may come in a different order than the connections produced by the
 /// underlying listener.
@@ -61,29 +64,38 @@ pub struct TlsListener<A: AsyncAccept> {
     #[pin]
     listener: A,
     tls: TlsAcceptor,
-    waiting: FuturesUnordered<tokio_rustls::Accept<A::Connection>>,
+    waiting: FuturesUnordered<Timeout<tokio_rustls::Accept<A::Connection>>>,
     max_handshakes: usize,
+    timeout: Duration,
+}
+
+/// Builder for `TlsListener`.
+#[derive(Clone)]
+pub struct Builder {
+    server_config: Arc<ServerConfig>,
+    max_handshakes: usize,
+    handshake_timeout: Duration,
+}
+
+impl<A: AsyncAccept> TlsListener<A> {
+    /// Create a `TlsListener` with default options.
+    pub fn new(server_config: ServerConfig, listener: A) -> Self {
+        builder(server_config).listen(listener)
+    }
 }
 
 impl<A> TlsListener<A>
 where
     A: AsyncAccept,
     A::Connection: AsyncRead + AsyncWrite + Unpin,
+    A::Error: Into<Box<dyn Error + Send + Sync>>,
+    Self: Unpin,
 {
-    /// Create a new TlsListener.
+    /// Accept the next connection
     ///
-    /// At most `max_handshakes` handshakes will be concurrently processed. If that limit is
-    /// reached, this stream will stop polling `listener` until a handshake completes and the
-    /// encrypted stream has been returned.
-    ///
-    /// `server_config` provides configuration for the TLS sessions.
-    pub fn new(listener: A, server_config: ServerConfig, max_handshakes: usize) -> Self {
-        Self {
-            listener,
-            tls: Arc::new(server_config).into(),
-            waiting: FuturesUnordered::new(),
-            max_handshakes,
-        }
+    /// This is essentially an alias to `self.next()` with a more domain-appropriate name.
+    pub fn accept(&mut self) -> impl Future<Output = Option<<Self as Stream>::Item>> + '_ {
+        self.next()
     }
 }
 
@@ -102,7 +114,8 @@ where
             match this.listener.as_mut().poll_accept(cx) {
                 Poll::Pending => break,
                 Poll::Ready(Ok(conn)) => {
-                    this.waiting.push(this.tls.accept(conn));
+                    this.waiting
+                        .push(timeout(*this.timeout, this.tls.accept(conn)));
                 }
                 Poll::Ready(Err(e)) => {
                     // Ideally we'd be able to do this match at compile time, but afaik,
@@ -116,12 +129,69 @@ where
             }
         }
 
-        match this.waiting.poll_next_unpin(cx) {
-            Poll::Ready(None) => Poll::Pending,
-            x => x,
+        loop {
+            return match this.waiting.poll_next_unpin(cx) {
+                Poll::Ready(Some(Ok(conn))) => Poll::Ready(Some(conn)),
+                // The handshake timed out, try getting another connection from the
+                // queue
+                Poll::Ready(Some(Err(_))) => continue,
+                _ => Poll::Pending,
+            };
         }
     }
 }
+
+impl Builder {
+    /// Set the maximum number of concurrent handshakes.
+    ///
+    /// At most `max` handshakes will be concurrently processed. If that limit is
+    /// reached, the `TlsListener` will stop polling the underlying listener until a
+    /// handshake completes and the encrypted stream has been returned.
+    ///
+    /// Defaults to `DEFAULT_MAX_HANDSHAKES`.
+    pub fn max_handshakes(&mut self, max: usize) -> &mut Self {
+        self.max_handshakes = max;
+        self
+    }
+
+    /// Set the timeout for handshakes.
+    ///
+    /// If a timeout takes longer than `timeout`, then the handshake will be
+    /// aborted and the underlying connection will be dropped.
+    ///
+    /// Defaults to `DEFAULT_HANDSHAKE_TIMEOUT`.
+    pub fn handshake_timeout(&mut self, timeout: Duration) -> &mut Self {
+        self.handshake_timeout = timeout;
+        self
+    }
+
+    /// Create a `TlsListener` from the builder
+    ///
+    /// Actually build the `TlsListener`. The `listener` argument should be
+    /// an implementation of the `AsyncAccept` trait that accepts new connections
+    /// that the `TlsListener` will  encrypt using TLS.
+    pub fn listen<A: AsyncAccept>(&self, listener: A) -> TlsListener<A> {
+        TlsListener {
+            listener,
+            tls: self.server_config.clone().into(),
+            waiting: FuturesUnordered::new(),
+            max_handshakes: self.max_handshakes,
+            timeout: self.handshake_timeout,
+        }
+    }
+}
+
+/// Create a new Builder for a TlsListener
+///
+/// `server_config` will be used to configure the TLS sessions.
+pub fn builder(server_config: ServerConfig) -> Builder {
+    Builder {
+        server_config: Arc::new(server_config),
+        max_handshakes: DEFAULT_MAX_HANDSHAKES,
+        handshake_timeout: DEFAULT_HANDSHAKE_TIMEOUT,
+    }
+}
+
 
 #[cfg(feature = "tokio-net")]
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio-net")))]

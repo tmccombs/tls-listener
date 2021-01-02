@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // This could be handled by adding a filter to the stream to filter out
     // unwanted errors (and possibly log them), then use `hyper::server::accept::from_stream`,
     // or by doing something similar to the http-low-level.rs example.
-    let incoming = TlsListener::new(AddrIncoming::bind(&addr)?, tls_config(), 64);
+    let incoming = TlsListener::new(tls_config(), AddrIncoming::bind(&addr)?);
 
     let server = Server::builder(incoming).serve(new_svc);
     server.await?;

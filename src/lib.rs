@@ -192,7 +192,6 @@ pub fn builder(server_config: ServerConfig) -> Builder {
     }
 }
 
-
 #[cfg(feature = "tokio-net")]
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio-net")))]
 impl AsyncAccept for tokio::net::TcpListener {

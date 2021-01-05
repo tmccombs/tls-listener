@@ -44,3 +44,7 @@ required-features = ["tokio-net"]
 name = "http-low-level"
 path = "examples/http-low-level.rs"
 required-features = ["hyper-h1"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

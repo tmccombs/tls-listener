@@ -26,9 +26,12 @@ async fn main() {
         .for_each(|r| async {
             match r {
                 Ok(conn) => {
-                    if let Err(err) = http.serve_connection(conn, svc).await {
-                        eprintln!("Application error: {}", err);
-                    }
+                    let http = http.clone();
+                    tokio::spawn(async move {
+                        if let Err(err) = http.serve_connection(conn, svc).await {
+                            eprintln!("Application error: {}", err);
+                        }
+                    });
                 }
                 Err(err) => {
                     eprintln!("Error accepting connection: {}", err);

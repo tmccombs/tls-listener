@@ -55,6 +55,11 @@ pub trait AsyncAccept {
 /// except that it has the ability to accept multiple transport-level connections
 /// simultaneously while the TLS handshake is pending for other connections.
 ///
+/// By default, if a client fails the TLS handshake, that is treated as an error, and the
+/// `TlsListener` will return an `Err`. If the `TlsListener` is passed directly to a hyper
+/// `Server`, then an invalid handshake can cause the server to stop accepting connections.
+/// See `http-stream.rs` or `http-low-level` examples, for examples of how to avoid this.
+///
 /// Note that if the maximum number of pending connections is greater than 1, the resulting
 /// `TlsStream` connections may come in a different order than the connections produced by the
 /// underlying listener.

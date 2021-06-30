@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     handle_stream(stream).await;
                 }
                 Err(e) => {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {:?}", e);
                 }
             }
         })

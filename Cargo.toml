@@ -36,6 +36,11 @@ path = "examples/http.rs"
 required-features = ["hyper-h1"]
 
 [[example]]
+name = "http-stream"
+path = "examples/http-stream.rs"
+required-features = ["hyper-h1"]
+
+[[example]]
 name = "echo"
 path = "examples/echo.rs"
 required-features = ["tokio-net"]

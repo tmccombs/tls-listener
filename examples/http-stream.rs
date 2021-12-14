@@ -1,8 +1,8 @@
+use futures_util::stream::StreamExt;
 use hyper::server::accept;
 use hyper::server::conn::AddrIncoming;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Response, Server};
-use futures_util::stream::StreamExt;
 use std::convert::Infallible;
 use std::future::ready;
 

@@ -8,7 +8,7 @@
 //! TCP or unix domain socket).
 
 use futures_util::stream::{FuturesUnordered, Stream, StreamExt};
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 use std::error::Error;
 use std::future::Future;
 use std::io;
@@ -42,36 +42,37 @@ pub trait AsyncAccept {
     ) -> Poll<Result<Self::Connection, Self::Error>>;
 }
 
-///
-/// Wraps a `Stream` of connections (such as a TCP listener) so that each connection is itself
-/// encrypted using TLS.
-///
-/// It is similar to:
-///
-/// ```ignore
-/// tcpListener.and_then(|s| tlsAcceptor.accept(s))
-/// ```
-///
-/// except that it has the ability to accept multiple transport-level connections
-/// simultaneously while the TLS handshake is pending for other connections.
-///
-/// By default, if a client fails the TLS handshake, that is treated as an error, and the
-/// `TlsListener` will return an `Err`. If the `TlsListener` is passed directly to a hyper
-/// `Server`, then an invalid handshake can cause the server to stop accepting connections.
-/// See `http-stream.rs` or `http-low-level` examples, for examples of how to avoid this.
-///
-/// Note that if the maximum number of pending connections is greater than 1, the resulting
-/// `TlsStream` connections may come in a different order than the connections produced by the
-/// underlying listener.
-///
-#[pin_project]
-pub struct TlsListener<A: AsyncAccept> {
-    #[pin]
-    listener: A,
-    tls: TlsAcceptor,
-    waiting: FuturesUnordered<Timeout<tokio_rustls::Accept<A::Connection>>>,
-    max_handshakes: usize,
-    timeout: Duration,
+pin_project! {
+    ///
+    /// Wraps a `Stream` of connections (such as a TCP listener) so that each connection is itself
+    /// encrypted using TLS.
+    ///
+    /// It is similar to:
+    ///
+    /// ```ignore
+    /// tcpListener.and_then(|s| tlsAcceptor.accept(s))
+    /// ```
+    ///
+    /// except that it has the ability to accept multiple transport-level connections
+    /// simultaneously while the TLS handshake is pending for other connections.
+    ///
+    /// By default, if a client fails the TLS handshake, that is treated as an error, and the
+    /// `TlsListener` will return an `Err`. If the `TlsListener` is passed directly to a hyper
+    /// `Server`, then an invalid handshake can cause the server to stop accepting connections.
+    /// See `http-stream.rs` or `http-low-level` examples, for examples of how to avoid this.
+    ///
+    /// Note that if the maximum number of pending connections is greater than 1, the resulting
+    /// `TlsStream` connections may come in a different order than the connections produced by the
+    /// underlying listener.
+    ///
+    pub struct TlsListener<A: AsyncAccept> {
+        #[pin]
+        listener: A,
+        tls: TlsAcceptor,
+        waiting: FuturesUnordered<Timeout<tokio_rustls::Accept<A::Connection>>>,
+        max_handshakes: usize,
+        timeout: Duration,
+    }
 }
 
 /// Builder for `TlsListener`.

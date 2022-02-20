@@ -9,12 +9,12 @@ use hyper::{Body, Response};
 use std::convert::Infallible;
 
 mod tls_config;
-use tls_config::tls_config;
+use tls_config::tls_acceptor;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let addr = ([127, 0, 0, 1], 3000).into();
-    let listener = tls_listener::builder(tls_config())
+    let listener = tls_listener::builder(tls_acceptor())
         .max_handshakes(10)
         .listen(AddrIncoming::bind(&addr).unwrap());
 

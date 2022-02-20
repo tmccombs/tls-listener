@@ -9,7 +9,7 @@ use std::future::ready;
 use tls_listener::TlsListener;
 
 mod tls_config;
-use tls_config::tls_config;
+use tls_config::tls_acceptor;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // This uses a filter to handle errors with connecting
-    let incoming = TlsListener::new(tls_config(), AddrIncoming::bind(&addr)?).filter(|conn| {
+    let incoming = TlsListener::new(tls_acceptor(), AddrIncoming::bind(&addr)?).filter(|conn| {
         if let Err(err) = conn {
             eprintln!("Error: {:?}", err);
             ready(false)

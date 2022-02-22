@@ -54,7 +54,7 @@ pub trait AsyncAccept {
 type TlsAcceptFuture<C> = tokio_rustls::Accept<C>;
 #[cfg(feature = "native-tls")]
 type TlsAcceptFuture<C> =
-    Pin<Box<dyn Future<Output = tokio_native_tls::native_tls::Result<TlsStream<C>>> + Send + Sync>>;
+    Pin<Box<dyn Future<Output = tokio_native_tls::native_tls::Result<TlsStream<C>>>>>;
 
 pin_project! {
     ///
@@ -115,7 +115,7 @@ pub enum Error<A: std::error::Error> {
 
 impl<A: AsyncAccept> TlsListener<A> {
     /// Create a `TlsListener` with default options.
-    pub fn new(acceptor: TlsAcceptor, listener: A) -> Self {
+    pub fn new<T: Into<TlsAcceptor>>(acceptor: T, listener: A) -> Self {
         builder(acceptor).listen(listener)
     }
 }
@@ -123,7 +123,7 @@ impl<A: AsyncAccept> TlsListener<A> {
 impl<A> TlsListener<A>
 where
     A: AsyncAccept,
-    A::Connection: AsyncRead + AsyncWrite + Unpin + Sync + Send + 'static,
+    A::Connection: AsyncRead + AsyncWrite + Unpin + 'static,
     A::Error: std::error::Error,
     Self: Unpin,
 {
@@ -138,7 +138,7 @@ where
 impl<A> Stream for TlsListener<A>
 where
     A: AsyncAccept,
-    A::Connection: AsyncRead + AsyncWrite + Unpin + Sync + Send + 'static,
+    A::Connection: AsyncRead + AsyncWrite + Unpin + 'static,
     A::Error: std::error::Error,
 {
     type Item = Result<TlsStream<A::Connection>, Error<A::Error>>;
@@ -225,9 +225,9 @@ impl Builder {
 /// Create a new Builder for a TlsListener
 ///
 /// `server_config` will be used to configure the TLS sessions.
-pub fn builder(acceptor: TlsAcceptor) -> Builder {
+pub fn builder<T: Into<TlsAcceptor>>(acceptor: T) -> Builder {
     Builder {
-        acceptor,
+        acceptor: acceptor.into(),
         max_handshakes: DEFAULT_MAX_HANDSHAKES,
         handshake_timeout: DEFAULT_HANDSHAKE_TIMEOUT,
     }
@@ -298,7 +298,7 @@ mod hyper_impl {
     impl<A> HyperAccept for TlsListener<A>
     where
         A: AsyncAccept,
-        A::Connection: AsyncRead + AsyncWrite + Unpin + Sync + Send + 'static,
+        A::Connection: AsyncRead + AsyncWrite + Unpin + 'static,
         A::Error: std::error::Error,
     {
         type Conn = TlsStream<A::Connection>;

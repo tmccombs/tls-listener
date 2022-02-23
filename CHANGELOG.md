@@ -1,6 +1,8 @@
-# Changelog 
+# Changelog
 
 ## 0.4.0 - 2022-02-22
+
+NOTE: This release contains several breaking changes.
 
 ### Added
 
@@ -8,10 +10,12 @@
 
 ### Changed
 
-- Either one of the `rustls` or `native-tls` features must now be enabled.
+- The TLS backend is now configurable. Both rustls and native-tls are supported. Other backends can also be used by implementing the `AsyncTls` trait.
+  - You must now supply either the `rustls` or `native-tls` features to get support for a tls backend.
+  - Unfortunately, the machinery for this required adding an additional type parameter to `TlsListener`.
 - The `TlsListener` stream now returns a `tls_listener::Error` instead of `std::io::Error` type.
-- Signatures of `TcpListener::new()` and `builder()` have changed to now take an argument `T: Into<TlsAcceptor>`. 
-  When passing a `rustls::ServerConfig` it should therefore be wrapped in an `Arc` first.
+- Signatures of `TcpListener::new()` and `builder()` have changed to now take an argument of the TLS type rather than a `rustls::ServerConfig`,
+  to update existing calls, replace `builder(config)` with `builder(Arc::new(config).into())`.
 
 ### Fixed
 

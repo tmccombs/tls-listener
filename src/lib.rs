@@ -6,14 +6,13 @@
 //! This library is intended to automatically initiate a TLS connection
 //! for each new connection in a source of new streams (such as a listening
 //! TCP or unix domain socket).
-
-mod compile_time_checks {
-    #[cfg(not(any(feature = "rustls", feature = "native-tls")))]
-    compile_error!("tls-listener requires either the `rustls` or `native-tls` feature");
-
-    #[cfg(all(feature = "rustls", feature = "native-tls"))]
-    compile_error!("The `rustls` and `native-tls` features in tls-listener are mutually exclusive");
-}
+//!
+//! # Features:
+//! - `rustls`: Support the tokio-rustls backend for tls (default)
+//! - `native-tls`: support the tokio-native-tls backend for tls
+//! - `hyper-h1`: hyper support with http/1
+//! - `hyper-h2`: hyper support with http/2
+//! - `tokio-net`: Implementations for tokio socket types (default)
 
 use futures_util::stream::{FuturesUnordered, Stream, StreamExt};
 use pin_project_lite::pin_project;
@@ -26,20 +25,31 @@ use std::time::Duration;
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::{timeout, Timeout};
-#[cfg(feature = "native-tls")]
-use tokio_native_tls::{TlsAcceptor, TlsStream};
-#[cfg(feature = "rustls")]
-use tokio_rustls::{server::TlsStream, TlsAcceptor};
 
 /// Default number of concurrent handshakes
 pub const DEFAULT_MAX_HANDSHAKES: usize = 64;
 /// Default timeout for the TLS handshake.
 pub const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_millis(200);
 
+/// Trait for TLS implementation.
+///
+/// Implementations are provided by the rustls and native-tls features.
+pub trait AsyncTls<C: AsyncRead + AsyncWrite>: Clone {
+    /// The type of the TLS stream created from the underlying stream.
+    type Stream;
+    /// Error type for completing the TLS handshake
+    type Error: std::error::Error;
+    /// Type of the Future for the TLS stream that is accepted.
+    type AcceptFuture: Future<Output = Result<Self::Stream, Self::Error>> + Unpin;
+
+    /// Accept a TLS connection on an underlying stream
+    fn accept(&self, stream: C) -> Self::AcceptFuture;
+}
+
 /// Asynchronously accept connections.
 pub trait AsyncAccept {
     /// The type of the connection that is accepted.
-    type Connection;
+    type Connection: AsyncRead + AsyncWrite;
     /// The type of error that may be returned.
     type Error;
 
@@ -49,12 +59,6 @@ pub trait AsyncAccept {
         cx: &mut Context<'_>,
     ) -> Poll<Result<Self::Connection, Self::Error>>;
 }
-
-#[cfg(feature = "rustls")]
-type TlsAcceptFuture<C> = tokio_rustls::Accept<C>;
-#[cfg(feature = "native-tls")]
-type TlsAcceptFuture<C> =
-    Pin<Box<dyn Future<Output = tokio_native_tls::native_tls::Result<TlsStream<C>>>>>;
 
 pin_project! {
     ///
@@ -79,11 +83,11 @@ pin_project! {
     /// `TlsStream` connections may come in a different order than the connections produced by the
     /// underlying listener.
     ///
-    pub struct TlsListener<A: AsyncAccept> {
+    pub struct TlsListener<A: AsyncAccept, T: AsyncTls<A::Connection>> {
         #[pin]
         listener: A,
-        tls: TlsAcceptor,
-        waiting: FuturesUnordered<Timeout<TlsAcceptFuture<A::Connection>>>,
+        tls: T,
+        waiting: FuturesUnordered<Timeout<T::AcceptFuture>>,
         max_handshakes: usize,
         timeout: Duration,
     }
@@ -91,40 +95,39 @@ pin_project! {
 
 /// Builder for `TlsListener`.
 #[derive(Clone)]
-pub struct Builder {
-    acceptor: TlsAcceptor,
+pub struct Builder<T> {
+    tls: T,
     max_handshakes: usize,
     handshake_timeout: Duration,
 }
 
 /// Wraps errors from either the listener or the TLS Acceptor
 #[derive(Debug, Error)]
-pub enum Error<A: std::error::Error> {
+pub enum Error<LE: std::error::Error, TE: std::error::Error> {
     /// An error that arose from the listener ([AsyncAccept::Error])
     #[error("{0}")]
-    ListenerError(#[source] A),
+    ListenerError(#[source] LE),
     /// An error that occurred during the TLS accept handshake
-    #[cfg(feature = "rustls")]
     #[error("{0}")]
-    TlsAcceptError(#[source] std::io::Error),
-    /// An error that occurred during the TLS accept handshake
-    #[cfg(feature = "native-tls")]
-    #[error("{0}")]
-    TlsAcceptError(#[source] tokio_native_tls::native_tls::Error),
+    TlsAcceptError(#[source] TE),
 }
 
-impl<A: AsyncAccept> TlsListener<A> {
+impl<A: AsyncAccept, T> TlsListener<A, T>
+where
+    T: AsyncTls<A::Connection>,
+{
     /// Create a `TlsListener` with default options.
-    pub fn new<T: Into<TlsAcceptor>>(acceptor: T, listener: A) -> Self {
-        builder(acceptor).listen(listener)
+    pub fn new(tls: T, listener: A) -> Self {
+        builder(tls).listen(listener)
     }
 }
 
-impl<A> TlsListener<A>
+impl<A, T> TlsListener<A, T>
 where
     A: AsyncAccept,
     A::Connection: AsyncRead + AsyncWrite + Unpin + 'static,
     A::Error: std::error::Error,
+    T: AsyncTls<A::Connection>,
     Self: Unpin,
 {
     /// Accept the next connection
@@ -135,13 +138,14 @@ where
     }
 }
 
-impl<A> Stream for TlsListener<A>
+impl<A, T> Stream for TlsListener<A, T>
 where
     A: AsyncAccept,
     A::Connection: AsyncRead + AsyncWrite + Unpin + 'static,
     A::Error: std::error::Error,
+    T: AsyncTls<A::Connection>,
 {
-    type Item = Result<TlsStream<A::Connection>, Error<A::Error>>;
+    type Item = Result<T::Stream, Error<A::Error, T::Error>>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
@@ -150,17 +154,8 @@ where
             match this.listener.as_mut().poll_accept(cx) {
                 Poll::Pending => break,
                 Poll::Ready(Ok(conn)) => {
-                    #[cfg(feature = "rustls")]
                     this.waiting
                         .push(timeout(*this.timeout, this.tls.accept(conn)));
-                    #[cfg(feature = "native-tls")]
-                    {
-                        let tls = this.tls.clone();
-                        this.waiting.push(timeout(
-                            *this.timeout,
-                            Box::pin(async move { tls.accept(conn).await }),
-                        ));
-                    }
                 }
                 Poll::Ready(Err(e)) => {
                     return Poll::Ready(Some(Err(Error::ListenerError(e))));
@@ -182,7 +177,33 @@ where
     }
 }
 
-impl Builder {
+#[cfg(feature = "rustls")]
+impl<C: AsyncRead + AsyncWrite + Unpin> AsyncTls<C> for tokio_rustls::TlsAcceptor {
+    type Stream = tokio_rustls::server::TlsStream<C>;
+    type Error = io::Error;
+    type AcceptFuture = tokio_rustls::Accept<C>;
+
+    fn accept(&self, conn: C) -> Self::AcceptFuture {
+        tokio_rustls::TlsAcceptor::accept(self, conn)
+    }
+}
+
+#[cfg(feature = "native-tls")]
+impl<C> AsyncTls<C> for tokio_native_tls::TlsAcceptor
+where
+    C: AsyncRead + AsyncWrite + Unpin + 'static,
+{
+    type Stream = tokio_native_tls::TlsStream<C>;
+    type Error = tokio_native_tls::native_tls::Error;
+    type AcceptFuture = Pin<Box<dyn Future<Output = Result<Self::Stream, Self::Error>>>>;
+
+    fn accept(&self, conn: C) -> Self::AcceptFuture {
+        let tls = self.clone();
+        Box::pin(async move { tokio_native_tls::TlsAcceptor::accept(&tls, conn).await })
+    }
+}
+
+impl<T> Builder<T> {
     /// Set the maximum number of concurrent handshakes.
     ///
     /// At most `max` handshakes will be concurrently processed. If that limit is
@@ -211,10 +232,13 @@ impl Builder {
     /// Actually build the `TlsListener`. The `listener` argument should be
     /// an implementation of the `AsyncAccept` trait that accepts new connections
     /// that the `TlsListener` will  encrypt using TLS.
-    pub fn listen<A: AsyncAccept>(&self, listener: A) -> TlsListener<A> {
+    pub fn listen<A: AsyncAccept>(&self, listener: A) -> TlsListener<A, T>
+    where
+        T: AsyncTls<A::Connection>,
+    {
         TlsListener {
             listener,
-            tls: self.acceptor.clone(),
+            tls: self.tls.clone(),
             waiting: FuturesUnordered::new(),
             max_handshakes: self.max_handshakes,
             timeout: self.handshake_timeout,
@@ -225,9 +249,9 @@ impl Builder {
 /// Create a new Builder for a TlsListener
 ///
 /// `server_config` will be used to configure the TLS sessions.
-pub fn builder<T: Into<TlsAcceptor>>(acceptor: T) -> Builder {
+pub fn builder<T>(tls: T) -> Builder<T> {
     Builder {
-        acceptor: acceptor.into(),
+        tls,
         max_handshakes: DEFAULT_MAX_HANDSHAKES,
         handshake_timeout: DEFAULT_HANDSHAKE_TIMEOUT,
     }
@@ -295,14 +319,15 @@ mod hyper_impl {
     }
 
     #[cfg_attr(docsrs, doc(cfg(any(feature = "hyper-h1", feature = "hyper-h2"))))]
-    impl<A> HyperAccept for TlsListener<A>
+    impl<A, T> HyperAccept for TlsListener<A, T>
     where
         A: AsyncAccept,
         A::Connection: AsyncRead + AsyncWrite + Unpin + 'static,
         A::Error: std::error::Error,
+        T: AsyncTls<A::Connection>,
     {
-        type Conn = TlsStream<A::Connection>;
-        type Error = Error<A::Error>;
+        type Conn = T::Stream;
+        type Error = Error<A::Error, T::Error>;
 
         fn poll_accept(
             self: Pin<&mut Self>,

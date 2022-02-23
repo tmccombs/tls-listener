@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use tls_listener::TlsListener;
 use tokio::io::{copy, split};
 use tokio::net::{TcpListener, TcpStream};
-#[cfg(feature = "native-tls")]
+#[cfg(all(feature = "native-tls", not(feature = "rustls")))]
 use tokio_native_tls::TlsStream;
 #[cfg(feature = "rustls")]
 use tokio_rustls::server::TlsStream;

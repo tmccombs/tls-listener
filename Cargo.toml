@@ -50,5 +50,5 @@ path = "examples/http-low-level.rs"
 required-features = ["hyper-h1"]
 
 [package.metadata.docs.rs]
-features = ["rustls", "hyper-h1", "hyper-h2"]
+features = ["rustls", "native-tls", "hyper-h1", "hyper-h2"]
 rustdoc-args = ["--cfg", "docsrs"]

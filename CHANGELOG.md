@@ -1,5 +1,11 @@
 # Changelog
 
+## Upcoming release
+
+### Changed
+
+- The implementation of `AsyncTls` for `tokio_native_tls::TlsAcceptor` now requires the connection type to implement `Send`. This in turn allows `TlsListener` to be `Send` when using the `native-tls` feature. Technically, this is a breaking change. However, in practice it is unlikely to break existing code and makes using `TlsListener` much easier to use when `native-tls` is enabled.
+
 ## 0.4.0 - 2022-02-22
 
 NOTE: This release contains several breaking changes.

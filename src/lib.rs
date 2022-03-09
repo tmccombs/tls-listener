@@ -191,11 +191,11 @@ impl<C: AsyncRead + AsyncWrite + Unpin> AsyncTls<C> for tokio_rustls::TlsAccepto
 #[cfg(feature = "native-tls")]
 impl<C> AsyncTls<C> for tokio_native_tls::TlsAcceptor
 where
-    C: AsyncRead + AsyncWrite + Unpin + 'static,
+    C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
     type Stream = tokio_native_tls::TlsStream<C>;
     type Error = tokio_native_tls::native_tls::Error;
-    type AcceptFuture = Pin<Box<dyn Future<Output = Result<Self::Stream, Self::Error>>>>;
+    type AcceptFuture = Pin<Box<dyn Future<Output = Result<Self::Stream, Self::Error>> + Send>>;
 
     fn accept(&self, conn: C) -> Self::AcceptFuture {
         let tls = self.clone();

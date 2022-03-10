@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2 - 2022-04-09
+
+### Added
+
+- Added [TlsListener::replace_acceptor()] function to allow replacing the listener certificate at runtime.
+
 ## 0.4.1 - 2022-04-09
 
 ### Changed

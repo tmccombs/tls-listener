@@ -17,11 +17,11 @@
 use futures_util::stream::{FuturesUnordered, Stream, StreamExt};
 use pin_project_lite::pin_project;
 use std::future::Future;
-use std::io;
 use std::marker::Unpin;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
+use std::{io, mem};
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::{timeout, Timeout};
@@ -135,6 +135,13 @@ where
     /// This is essentially an alias to `self.next()` with a more domain-appropriate name.
     pub fn accept(&mut self) -> impl Future<Output = Option<<Self as Stream>::Item>> + '_ {
         self.next()
+    }
+
+    /// Replaces the Tls Acceptor configuration, which will be used for new connections.
+    ///
+    /// This can be used to change the certificate used at runtime.
+    pub fn replace_acceptor(&mut self, acceptor: T) {
+        self.tls = acceptor;
     }
 }
 

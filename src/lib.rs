@@ -340,7 +340,17 @@ mod hyper_impl {
             self: Pin<&mut Self>,
             cx: &mut Context<'_>,
         ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
-            self.poll_next(cx)
+            match self.poll_next(cx) {
+                Poll::Ready(Some(res)) => match res {
+                    Ok(val) => Poll::Ready(Some(Ok(val))),
+                    Err(e) => {
+                        println!("error {}", e);
+                        Poll::Pending
+                    }
+                },
+                Poll::Pending => Poll::Pending,
+                Poll::Ready(None) => unreachable!("None returned from self"),
+            }
         }
     }
 }

@@ -344,7 +344,6 @@ mod hyper_impl {
                 Poll::Ready(Some(res)) => match res {
                     Ok(val) => Poll::Ready(Some(Ok(val))),
                     Err(e) => {
-                        println!("error {}", e);
                         Poll::Pending
                     }
                 },

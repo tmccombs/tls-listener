@@ -1,8 +1,9 @@
 use futures_util::StreamExt;
 use std::net::SocketAddr;
-use tls_listener::TlsListener;
+use tls_listener::{AsyncAccept, TlsListener};
 use tokio::io::{copy, split};
 use tokio::net::{TcpListener, TcpStream};
+use tokio::signal::ctrl_c;
 #[cfg(all(feature = "native-tls", not(feature = "rustls")))]
 use tokio_native_tls::TlsStream;
 #[cfg(feature = "rustls")]
@@ -26,7 +27,7 @@ async fn handle_stream(stream: TlsStream<TcpStream>) {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr: SocketAddr = ([127, 0, 0, 1], 3000).into();
 
-    let listener = TcpListener::bind(&addr).await?;
+    let listener = TcpListener::bind(&addr).await?.until(ctrl_c());
 
     TlsListener::new(tls_acceptor(), listener)
         .for_each_concurrent(None, |s| async {

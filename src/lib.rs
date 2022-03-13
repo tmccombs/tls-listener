@@ -17,11 +17,11 @@
 use futures_util::stream::{FuturesUnordered, Stream, StreamExt};
 use pin_project_lite::pin_project;
 use std::future::Future;
+use std::io;
 use std::marker::Unpin;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
-use std::{io, mem};
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::{timeout, Timeout};
@@ -57,7 +57,24 @@ pub trait AsyncAccept {
     fn poll_accept(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Result<Self::Connection, Self::Error>>;
+    ) -> Poll<Option<Result<Self::Connection, Self::Error>>>;
+
+    /// Return a new `AsyncAccept` that stops accepting connections after
+    /// `ender` completes.
+    ///
+    /// Useful for graceful shutdown.
+    ///
+    /// See [examples/echo.rs](https://github.com/tmccombs/tls-listener/blob/main/examples/echo.rs)
+    /// for example of how to use.
+    fn until<F: Future>(self, ender: F) -> Until<Self, F>
+    where
+        Self: Sized,
+    {
+        Until {
+            acceptor: self,
+            ender,
+        }
+    }
 }
 
 pin_project! {
@@ -160,13 +177,14 @@ where
         while this.waiting.len() < *this.max_handshakes {
             match this.listener.as_mut().poll_accept(cx) {
                 Poll::Pending => break,
-                Poll::Ready(Ok(conn)) => {
+                Poll::Ready(Some(Ok(conn))) => {
                     this.waiting
                         .push(timeout(*this.timeout, this.tls.accept(conn)));
                 }
-                Poll::Ready(Err(e)) => {
+                Poll::Ready(Some(Err(e))) => {
                     return Poll::Ready(Some(Err(Error::ListenerError(e))));
                 }
+                Poll::Ready(None) => return Poll::Ready(None),
             }
         }
 
@@ -273,10 +291,10 @@ impl AsyncAccept for tokio::net::TcpListener {
     fn poll_accept(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Result<Self::Connection, Self::Error>> {
+    ) -> Poll<Option<Result<Self::Connection, Self::Error>>> {
         match (*self).poll_accept(cx) {
-            Poll::Ready(Ok((stream, _))) => Poll::Ready(Ok(stream)),
-            Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
+            Poll::Ready(Ok((stream, _))) => Poll::Ready(Some(Ok(stream))),
+            Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
             Poll::Pending => Poll::Pending,
         }
     }
@@ -291,11 +309,38 @@ impl AsyncAccept for tokio::net::UnixListener {
     fn poll_accept(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Result<Self::Connection, Self::Error>> {
+    ) -> Poll<Option<Result<Self::Connection, Self::Error>>> {
         match (*self).poll_accept(cx) {
-            Poll::Ready(Ok((stream, _))) => Poll::Ready(Ok(stream)),
-            Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
+            Poll::Ready(Ok((stream, _))) => Poll::Ready(Some(Ok(stream))),
+            Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
             Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+pin_project! {
+    /// See [`AsyncAccept::until`]
+    pub struct Until<A, E> {
+        #[pin]
+        acceptor: A,
+        #[pin]
+        ender: E,
+    }
+}
+
+impl<A: AsyncAccept, E: Future> AsyncAccept for Until<A, E> {
+    type Connection = A::Connection;
+    type Error = A::Error;
+
+    fn poll_accept(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Self::Connection, Self::Error>>> {
+        let this = self.project();
+
+        match this.ender.poll(cx) {
+            Poll::Pending => this.acceptor.poll_accept(cx),
+            Poll::Ready(_) => Poll::Ready(None),
         }
     }
 }
@@ -316,11 +361,10 @@ mod hyper_impl {
         fn poll_accept(
             self: Pin<&mut Self>,
             cx: &mut Context<'_>,
-        ) -> Poll<Result<Self::Connection, Self::Error>> {
+        ) -> Poll<Option<Result<Self::Connection, Self::Error>>> {
             match <AddrIncoming as HyperAccept>::poll_accept(self, cx) {
-                Poll::Ready(Some(res)) => Poll::Ready(res),
+                Poll::Ready(res) => Poll::Ready(res),
                 Poll::Pending => Poll::Pending,
-                Poll::Ready(None) => unreachable!("None returned from AddrIncoming"),
             }
         }
     }

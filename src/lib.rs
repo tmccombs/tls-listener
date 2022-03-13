@@ -93,12 +93,17 @@ pin_project! {
     ///
     /// By default, if a client fails the TLS handshake, that is treated as an error, and the
     /// `TlsListener` will return an `Err`. If the `TlsListener` is passed directly to a hyper
-    /// `Server`, then an invalid handshake can cause the server to stop accepting connections.
-    /// See `http-stream.rs` or `http-low-level` examples, for examples of how to avoid this.
+    /// [`Server`][1], then an invalid handshake can cause the server to stop accepting connections.
+    /// See [`http-stream.rs`][2] or [`http-low-level`][3] examples, for examples of how to avoid this.
     ///
     /// Note that if the maximum number of pending connections is greater than 1, the resulting
-    /// `TlsStream` connections may come in a different order than the connections produced by the
+    /// [`T::Stream`][4] connections may come in a different order than the connections produced by the
     /// underlying listener.
+    ///
+    /// [1]: https://docs.rs/hyper/latest/hyper/server/struct.Server.html
+    /// [2]: https://github.com/tmccombs/tls-listener/blob/main/examples/http-stream.rs
+    /// [3]: https://github.com/tmccombs/tls-listener/blob/main/examples/http-low-level.rs
+    /// [4]: AsyncTls::Stream
     ///
     pub struct TlsListener<A: AsyncAccept, T: AsyncTls<A::Connection>> {
         #[pin]

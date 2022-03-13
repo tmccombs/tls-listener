@@ -58,6 +58,23 @@ pub trait AsyncAccept {
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Self::Connection, Self::Error>>>;
+
+    /// Return a new `AsyncAccept` that stops accepting connections after
+    /// `ender` completes.
+    ///
+    /// Useful for graceful shutdown.
+    ///
+    /// See [examples/echo.rs](https://github.com/tmccombs/tls-listener/blob/main/examples/echo.rs)
+    /// for example of how to use.
+    fn until<F: Future>(self, ender: F) -> Until<Self, F>
+    where
+        Self: Sized,
+    {
+        Until {
+            acceptor: self,
+            ender,
+        }
+    }
 }
 
 pin_project! {
@@ -297,6 +314,33 @@ impl AsyncAccept for tokio::net::UnixListener {
             Poll::Ready(Ok((stream, _))) => Poll::Ready(Some(Ok(stream))),
             Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
             Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+pin_project! {
+    /// See [`AsyncAccept::until`]
+    pub struct Until<A, E> {
+        #[pin]
+        acceptor: A,
+        #[pin]
+        ender: E,
+    }
+}
+
+impl<A: AsyncAccept, E: Future> AsyncAccept for Until<A, E> {
+    type Connection = A::Connection;
+    type Error = A::Error;
+
+    fn poll_accept(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Self::Connection, Self::Error>>> {
+        let this = self.project();
+
+        match this.ender.poll(cx) {
+            Poll::Pending => this.acceptor.poll_accept(cx),
+            Poll::Ready(_) => Poll::Ready(None),
         }
     }
 }

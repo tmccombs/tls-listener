@@ -18,7 +18,6 @@ use futures_util::stream::{FuturesUnordered, Stream, StreamExt};
 use pin_project_lite::pin_project;
 use std::future::Future;
 use std::io;
-use std::marker::Unpin;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -40,7 +39,7 @@ pub trait AsyncTls<C: AsyncRead + AsyncWrite>: Clone {
     /// Error type for completing the TLS handshake
     type Error: std::error::Error;
     /// Type of the Future for the TLS stream that is accepted.
-    type AcceptFuture: Future<Output = Result<Self::Stream, Self::Error>> + Unpin;
+    type AcceptFuture: Future<Output = Result<Self::Stream, Self::Error>>;
 
     /// Accept a TLS connection on an underlying stream
     fn accept(&self, stream: C) -> Self::AcceptFuture;
@@ -147,7 +146,6 @@ where
 impl<A, T> TlsListener<A, T>
 where
     A: AsyncAccept,
-    A::Connection: AsyncRead + AsyncWrite + Unpin + 'static,
     A::Error: std::error::Error,
     T: AsyncTls<A::Connection>,
     Self: Unpin,
@@ -170,7 +168,6 @@ where
 impl<A, T> Stream for TlsListener<A, T>
 where
     A: AsyncAccept,
-    A::Connection: AsyncRead + AsyncWrite + Unpin + 'static,
     A::Error: std::error::Error,
     T: AsyncTls<A::Connection>,
 {
@@ -378,7 +375,6 @@ mod hyper_impl {
     impl<A, T> HyperAccept for TlsListener<A, T>
     where
         A: AsyncAccept,
-        A::Connection: AsyncRead + AsyncWrite + Unpin + 'static,
         A::Error: std::error::Error,
         T: AsyncTls<A::Connection>,
     {

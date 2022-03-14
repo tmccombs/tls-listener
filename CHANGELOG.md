@@ -8,6 +8,8 @@
 
 ### Changed
 - **Backwards incompatible**: `AsyncAccept::poll_accept` now returns, `Poll<Option<Result<...>>>` instead of `Poll<Result<...>>`. This allows the incoming stream of connections to stop, for example, if a graceful shutdown has been initiated. `impl`s provided by this crate have been updated, but custom implementations of `AsyncAccept`, or direct usage of the trait may break.
+- Removed unnecessary type bounds (see #14). Potentially a breaking change, although I'd be suprised if any real code was affected.
+
 
 ## 0.4.2 - 2022-04-09
 

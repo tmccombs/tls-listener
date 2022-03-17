@@ -23,6 +23,8 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
+#[cfg(feature = "rt")]
+use tokio::task::JoinHandle;
 use tokio::time::{timeout, Timeout};
 
 /// Default number of concurrent handshakes
@@ -43,6 +45,21 @@ pub trait AsyncTls<C: AsyncRead + AsyncWrite>: Clone {
 
     /// Accept a TLS connection on an underlying stream
     fn accept(&self, stream: C) -> Self::AcceptFuture;
+
+    /// Convert this `AsyncTls` into one that will spawna new task for each new connection.
+    ///
+    /// This will wrap each call to [`accept`] with a call to [`tokio::spawn`]. This
+    /// is especially useful when using a multi-threaded runtime, so that the TLS handshakes
+    /// are distributed between multiple threads.
+    #[cfg(feature = "rt")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rt")))]
+    fn spawning(self) -> SpawningTls<Self>
+    where
+        Self::AcceptFuture: Send + 'static,
+        Self::Error: Send,
+    {
+        SpawningTls { inner: self }
+    }
 }
 
 /// Asynchronously accept connections.
@@ -343,6 +360,61 @@ impl<A: AsyncAccept, E: Future> AsyncAccept for Until<A, E> {
         match this.ender.poll(cx) {
             Poll::Pending => this.acceptor.poll_accept(cx),
             Poll::Ready(_) => Poll::Ready(None),
+        }
+    }
+}
+
+/// See [`AsyncTls::spawning`]
+#[cfg(feature = "rt")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rt")))]
+#[derive(Clone)]
+pub struct SpawningTls<T> {
+    inner: T,
+}
+
+#[cfg(feature = "rt")]
+impl<C, T> AsyncTls<C> for SpawningTls<T>
+where
+    T: AsyncTls<C>,
+    C: AsyncRead + AsyncWrite,
+    T::AcceptFuture: Send + 'static,
+    T::Stream: Send + 'static,
+    T::Error: Send + 'static,
+{
+    type Stream = T::Stream;
+    type Error = T::Error;
+    type AcceptFuture = JoinTlsHandle<T::Stream, T::Error>;
+
+    fn accept(&self, stream: C) -> Self::AcceptFuture {
+        JoinTlsHandle {
+            inner: tokio::spawn(self.inner.accept(stream)),
+        }
+    }
+}
+
+#[cfg_attr(docsrs, doc(cfg(feature = "rt")))]
+#[cfg(feature = "rt")]
+pin_project! {
+    /// Future type returned by [`SpawningTls::accept`];
+    pub struct JoinTlsHandle<Stream, Error>{
+        #[pin]
+        inner: JoinHandle<Result<Stream, Error>>
+    }
+}
+#[cfg(feature = "rt")]
+impl<Stream, Error> Future for JoinTlsHandle<Stream, Error> {
+    type Output = Result<Stream, Error>;
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.project().inner.poll(cx) {
+            Poll::Ready(Ok(v)) => Poll::Ready(v),
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(Err(e)) => {
+                if e.is_panic() {
+                    std::panic::resume_unwind(e.into_panic());
+                } else {
+                    panic!("Tls handshake was aborted: {:?}", e);
+                }
+            }
         }
     }
 }

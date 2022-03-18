@@ -14,6 +14,8 @@
 //! - `hyper-h2`: hyper support with http/2
 //! - `tokio-net`: Implementations for tokio socket types (default)
 
+#[cfg(feature = "rt")]
+pub use concurrent_handshake::ConcurrentHandshakeTls;
 use futures_util::stream::{FuturesUnordered, Stream, StreamExt};
 use pin_project_lite::pin_project;
 use std::future::Future;
@@ -23,9 +25,14 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
-#[cfg(feature = "rt")]
-use tokio::task::JoinHandle;
 use tokio::time::{timeout, Timeout};
+
+#[cfg(feature = "rt")]
+mod concurrent_handshake;
+
+/// This module contains feature specific to integrating with the hyper library.
+#[cfg(any(feature = "hyper-h1", feature = "hyper-h2"))]
+pub mod hyper;
 
 /// Default number of concurrent handshakes
 pub const DEFAULT_MAX_HANDSHAKES: usize = 64;
@@ -53,12 +60,12 @@ pub trait AsyncTls<C: AsyncRead + AsyncWrite>: Clone {
     /// are distributed between multiple threads.
     #[cfg(feature = "rt")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rt")))]
-    fn spawning(self) -> SpawningTls<Self>
+    fn concurrent_handshakes(self) -> ConcurrentHandshakeTls<Self>
     where
         Self::AcceptFuture: Send + 'static,
         Self::Error: Send,
     {
-        SpawningTls { inner: self }
+        ConcurrentHandshakeTls(self)
     }
 }
 
@@ -360,172 +367,6 @@ impl<A: AsyncAccept, E: Future> AsyncAccept for Until<A, E> {
         match this.ender.poll(cx) {
             Poll::Pending => this.acceptor.poll_accept(cx),
             Poll::Ready(_) => Poll::Ready(None),
-        }
-    }
-}
-
-/// See [`AsyncTls::spawning`]
-#[cfg(feature = "rt")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rt")))]
-#[derive(Clone)]
-pub struct SpawningTls<T> {
-    inner: T,
-}
-
-#[cfg(feature = "rt")]
-impl<C, T> AsyncTls<C> for SpawningTls<T>
-where
-    T: AsyncTls<C>,
-    C: AsyncRead + AsyncWrite,
-    T::AcceptFuture: Send + 'static,
-    T::Stream: Send + 'static,
-    T::Error: Send + 'static,
-{
-    type Stream = T::Stream;
-    type Error = T::Error;
-    type AcceptFuture = JoinTlsHandle<T::Stream, T::Error>;
-
-    fn accept(&self, stream: C) -> Self::AcceptFuture {
-        JoinTlsHandle {
-            inner: tokio::spawn(self.inner.accept(stream)),
-        }
-    }
-}
-
-#[cfg_attr(docsrs, doc(cfg(feature = "rt")))]
-#[cfg(feature = "rt")]
-pin_project! {
-    /// Future type returned by [`SpawningTls::accept`];
-    pub struct JoinTlsHandle<Stream, Error>{
-        #[pin]
-        inner: JoinHandle<Result<Stream, Error>>
-    }
-}
-#[cfg(feature = "rt")]
-impl<Stream, Error> Future for JoinTlsHandle<Stream, Error> {
-    type Output = Result<Stream, Error>;
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.project().inner.poll(cx) {
-            Poll::Ready(Ok(v)) => Poll::Ready(v),
-            Poll::Pending => Poll::Pending,
-            Poll::Ready(Err(e)) => {
-                if e.is_panic() {
-                    std::panic::resume_unwind(e.into_panic());
-                } else {
-                    panic!("Tls handshake was aborted: {:?}", e);
-                }
-            }
-        }
-    }
-}
-
-/// This module contains feature specific to integrating with the hyper library.
-#[cfg(any(feature = "hyper-h1", feature = "hyper-h2"))]
-pub mod hyper {
-    use super::*;
-    use ::hyper::server::accept::Accept as HyperAccept;
-    use ::hyper::server::conn::{AddrIncoming, AddrStream};
-    use std::ops::{Deref, DerefMut};
-
-    #[cfg_attr(docsrs, doc(cfg(any(feature = "hyper-h1", feature = "hyper-h2"))))]
-    impl AsyncAccept for AddrIncoming {
-        type Connection = AddrStream;
-        type Error = io::Error;
-
-        fn poll_accept(
-            self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-        ) -> Poll<Option<Result<Self::Connection, Self::Error>>> {
-            <AddrIncoming as HyperAccept>::poll_accept(self, cx)
-        }
-    }
-
-    pin_project! {
-        /// newtype for a [`::hyper::server::accept::Accept`] to impl [`AsyncAccept`]
-        ///
-        /// Unfortunately, it isn't possible to use a blanket impl, due to coherence rules.
-        /// At least until [RFC 1210](https://rust-lang.github.io/rfcs/1210-impl-specialization.html)
-        /// (specialization) is stabilized.
-        //#[cfg_attr(docsrs, doc(cfg(any(feature = "hyper-h1", feature = "hyper-h2"))))]
-        pub struct WrappedAccept<A> {
-            // sadly, pin-project-lite doesn't suport tuple structs :(
-
-            #[pin]
-            inner: A
-        }
-    }
-
-    /// Wrap any[`::hyper::server::accept::Accept`] as an [`AsyncAccept`].
-    ///
-    /// This allows you to use any type that implements the hyper `Accept` interface
-    /// in a [`TlsListener`].
-    pub fn wrap<A: HyperAccept>(acceptor: A) -> WrappedAccept<A> {
-        WrappedAccept { inner: acceptor }
-    }
-
-    #[cfg_attr(docsrs, doc(cfg(any(feature = "hyper-h1", feature = "hyper-h2"))))]
-    impl<A: HyperAccept> AsyncAccept for WrappedAccept<A>
-    where
-        A::Conn: AsyncRead + AsyncWrite,
-    {
-        type Connection = A::Conn;
-        type Error = A::Error;
-
-        fn poll_accept(
-            self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-        ) -> Poll<Option<Result<Self::Connection, Self::Error>>> {
-            self.project().inner.poll_accept(cx)
-        }
-    }
-
-    impl<A: HyperAccept> Deref for WrappedAccept<A> {
-        type Target = A;
-        fn deref(&self) -> &A {
-            &self.inner
-        }
-    }
-
-    impl<A: HyperAccept> DerefMut for WrappedAccept<A> {
-        fn deref_mut(&mut self) -> &mut A {
-            &mut self.inner
-        }
-    }
-
-    impl<A: HyperAccept> WrappedAccept<A> {
-        /// Conver to the object wrapped by this `WrappedAccept`
-        pub fn into_inner(self) -> A {
-            self.inner
-        }
-    }
-
-    impl<A: HyperAccept, T> TlsListener<WrappedAccept<A>, T>
-    where
-        A::Conn: AsyncWrite + AsyncRead,
-        T: AsyncTls<A::Conn>,
-    {
-        /// Create a `TlsListener` from a hyper [`Accept`](::hyper::server::accept::Accept) and tls
-        /// acceptor.
-        pub fn new_hyper(tls: T, listener: A) -> Self {
-            Self::new(tls, wrap(listener))
-        }
-    }
-
-    #[cfg_attr(docsrs, doc(cfg(any(feature = "hyper-h1", feature = "hyper-h2"))))]
-    impl<A, T> HyperAccept for TlsListener<A, T>
-    where
-        A: AsyncAccept,
-        A::Error: std::error::Error,
-        T: AsyncTls<A::Connection>,
-    {
-        type Conn = T::Stream;
-        type Error = Error<A::Error, T::Error>;
-
-        fn poll_accept(
-            self: Pin<&mut Self>,
-            cx: &mut Context<'_>,
-        ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
-            self.poll_next(cx)
         }
     }
 }

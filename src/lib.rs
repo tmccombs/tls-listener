@@ -148,12 +148,14 @@ where
     A: AsyncAccept,
     A::Error: std::error::Error,
     T: AsyncTls<A::Connection>,
-    Self: Unpin,
 {
     /// Accept the next connection
     ///
     /// This is essentially an alias to `self.next()` with a more domain-appropriate name.
-    pub fn accept(&mut self) -> impl Future<Output = Option<<Self as Stream>::Item>> + '_ {
+    pub fn accept(&mut self) -> impl Future<Output = Option<<Self as Stream>::Item>> + '_
+    where
+        Self: Unpin,
+    {
         self.next()
     }
 
@@ -162,6 +164,15 @@ where
     /// This can be used to change the certificate used at runtime.
     pub fn replace_acceptor(&mut self, acceptor: T) {
         self.tls = acceptor;
+    }
+
+    /// Replaces the Tls Acceptor configuration from a pinned reference to `Self`.
+    ///
+    /// This is useful if your listener is `!Unpin`.
+    ///
+    /// This can be used to change the certificate used at runtime.
+    pub fn replace_acceptor_pin(self: Pin<&mut Self>, acceptor: T) {
+        *self.project().tls = acceptor;
     }
 }
 

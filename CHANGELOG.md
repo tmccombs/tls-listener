@@ -6,7 +6,7 @@
 
 - Added [`AsyncAccept::until`] method, that creates a new `AsyncAccept` that will stop accepting connections after another future finishes.
 - Added `hyper` submodule to add additional support for hyper. Specifically, a newtype for the hyper `Accept` trait for `AsyncAccept`.
-- Added `concurrent_handshakes` method behind the `rt` feature flag. This allows you to perform multiple handshakes in parallel with a multi-threaded runtime.
+- Added `spawning_handshakes` method behind the `rt` feature flag. This allows you to perform multiple handshakes in parallel with a multi-threaded runtime.
 
 ### Changed
 - **Backwards incompatible**: `AsyncAccept::poll_accept` now returns, `Poll<Option<Result<...>>>` instead of `Poll<Result<...>>`. This allows the incoming stream of connections to stop, for example, if a graceful shutdown has been initiated. `impl`s provided by this crate have been updated, but custom implementations of `AsyncAccept`, or direct usage of the trait may break.

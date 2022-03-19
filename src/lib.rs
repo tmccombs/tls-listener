@@ -14,10 +14,10 @@
 //! - `hyper-h2`: hyper support with http/2
 //! - `tokio-net`: Implementations for tokio socket types (default)
 
-#[cfg(feature = "rt")]
-pub use concurrent_handshake::ConcurrentHandshakeTls;
 use futures_util::stream::{FuturesUnordered, Stream, StreamExt};
 use pin_project_lite::pin_project;
+#[cfg(feature = "rt")]
+pub use spawning_handshake::SpawningHandshakeTls;
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
@@ -28,7 +28,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::{timeout, Timeout};
 
 #[cfg(feature = "rt")]
-mod concurrent_handshake;
+mod spawning_handshake;
 
 /// This module contains feature specific to integrating with the hyper library.
 #[cfg(any(feature = "hyper-h1", feature = "hyper-h2"))]
@@ -60,12 +60,12 @@ pub trait AsyncTls<C: AsyncRead + AsyncWrite>: Clone {
     /// are distributed between multiple threads.
     #[cfg(feature = "rt")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rt")))]
-    fn concurrent_handshakes(self) -> ConcurrentHandshakeTls<Self>
+    fn spawning_handshakes(self) -> SpawningHandshakeTls<Self>
     where
         Self::AcceptFuture: Send + 'static,
         Self::Error: Send,
     {
-        ConcurrentHandshakeTls(self)
+        SpawningHandshakeTls(self)
     }
 }
 

@@ -6,11 +6,11 @@ use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::task::JoinHandle;
 
-/// See [`AsyncTls::concurrent_handshakes`]
+/// See [`AsyncTls::spawning_handshakes`]
 #[cfg_attr(docsrs, doc(cfg(feature = "rt")))]
 #[derive(Clone, Debug)]
-pub struct ConcurrentHandshakeTls<T>(pub(crate) T);
-impl<C, T> AsyncTls<C> for ConcurrentHandshakeTls<T>
+pub struct SpawningHandshakeTls<T>(pub(crate) T);
+impl<C, T> AsyncTls<C> for SpawningHandshakeTls<T>
 where
     T: AsyncTls<C>,
     C: AsyncRead + AsyncWrite,
@@ -29,8 +29,8 @@ where
     }
 }
 
-impl<T> ConcurrentHandshakeTls<T> {
-    /// Convert a [`ConcurrentHandshakeTls`] back into the inner type that it wraps.
+impl<T> SpawningHandshakeTls<T> {
+    /// Convert a [`SpawningHandshakeTls`] back into the inner type that it wraps.
     pub fn into_inner(self) -> T {
         self.0
     }
@@ -38,7 +38,7 @@ impl<T> ConcurrentHandshakeTls<T> {
 
 #[cfg_attr(docsrs, doc(cfg(feature = "rt")))]
 pin_project! {
-    /// Future type returned by [`ConcurrentHandshakeTls::accept`];
+    /// Future type returned by [`SpawningHandshakeTls::accept`];
     pub struct HandshakeJoin<Stream, Error>{
         #[pin]
         inner: JoinHandle<Result<Stream, Error>>

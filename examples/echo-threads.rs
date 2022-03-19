@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind(&addr).await?.until(ctrl_c());
 
     TlsListener::new(
-        AsyncTls::<TcpStream>::concurrent_handshakes(tls_acceptor()),
+        AsyncTls::<TcpStream>::spawning_handshakes(tls_acceptor()),
         listener,
     )
     .for_each_concurrent(None, |s| async {

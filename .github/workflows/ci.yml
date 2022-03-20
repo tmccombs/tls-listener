@@ -8,14 +8,11 @@ on:
   pull_request:
 
 jobs:
-  build:
+  build-full:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         rust: [stable, beta, nightly]
-        tls: [rustls, native-tls]
-        features:
-          - hyper-h1,hyper-h2
     continue-on-error: ${{ matrix.rust == 'nightly' }}
     steps:
       - uses: actions/checkout@v2
@@ -26,10 +23,34 @@ jobs:
           profile: minimal
           components: rustfmt, clippy
       - name: Build
-        run: cargo build --verbose --examples --features ${{ matrix.tls }},${{ matrix.features }}
+        run: cargo build --verbose --examples --all-features
       - name: Test
-        run: cargo test --verbose --features ${{ matrix.tls }},${{ matrix.features }}
+        run: cargo test --verbose --all-features
       - name: Lint
-        run: cargo clippy --examples --features ${{ matrix.tls }},${{ matrix.features }}
+        run: cargo clippy --examples --all-features
       - name: Format check
         run: cargo fmt -- --check
+  check-features:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        features:
+          - ""
+          - tokio-net
+          - rustls
+          - native-tls
+          - rt
+          - hyper-h1
+          - hyper-h2
+          - rustls,native-tls
+          - tokio-net,rt,rustls
+          - tokio-net,native-tls
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          profile: minimal
+      - name: Check
+        run: cargo check --verbose --no-default-features --features "${{ matrix.features }}"

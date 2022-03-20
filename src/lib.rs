@@ -20,7 +20,6 @@ use pin_project_lite::pin_project;
 #[cfg(feature = "rt")]
 pub use spawning_handshake::SpawningHandshakes;
 use std::future::Future;
-use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
@@ -34,6 +33,9 @@ mod spawning_handshake;
 /// This module contains feature specific to integrating with the hyper library.
 #[cfg(any(feature = "hyper-h1", feature = "hyper-h2"))]
 pub mod hyper;
+
+#[cfg(feature = "tokio-net")]
+mod net;
 
 /// Default number of concurrent handshakes
 pub const DEFAULT_MAX_HANDSHAKES: usize = 64;
@@ -228,7 +230,7 @@ where
 #[cfg(feature = "rustls")]
 impl<C: AsyncRead + AsyncWrite + Unpin> AsyncTls<C> for tokio_rustls::TlsAcceptor {
     type Stream = tokio_rustls::server::TlsStream<C>;
-    type Error = io::Error;
+    type Error = std::io::Error;
     type AcceptFuture = tokio_rustls::Accept<C>;
 
     fn accept(&self, conn: C) -> Self::AcceptFuture {
@@ -302,42 +304,6 @@ pub fn builder<T>(tls: T) -> Builder<T> {
         tls,
         max_handshakes: DEFAULT_MAX_HANDSHAKES,
         handshake_timeout: DEFAULT_HANDSHAKE_TIMEOUT,
-    }
-}
-
-#[cfg(feature = "tokio-net")]
-#[cfg_attr(docsrs, doc(cfg(feature = "tokio-net")))]
-impl AsyncAccept for tokio::net::TcpListener {
-    type Connection = tokio::net::TcpStream;
-    type Error = io::Error;
-
-    fn poll_accept(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Self::Connection, Self::Error>>> {
-        match (*self).poll_accept(cx) {
-            Poll::Ready(Ok((stream, _))) => Poll::Ready(Some(Ok(stream))),
-            Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
-            Poll::Pending => Poll::Pending,
-        }
-    }
-}
-
-#[cfg(all(unix, feature = "tokio-net"))]
-#[cfg_attr(docsrs, doc(cfg(feature = "tokio-net")))]
-impl AsyncAccept for tokio::net::UnixListener {
-    type Connection = tokio::net::UnixStream;
-    type Error = io::Error;
-
-    fn poll_accept(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Self::Connection, Self::Error>>> {
-        match (*self).poll_accept(cx) {
-            Poll::Ready(Ok((stream, _))) => Poll::Ready(Some(Ok(stream))),
-            Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
-            Poll::Pending => Poll::Pending,
-        }
     }
 }
 

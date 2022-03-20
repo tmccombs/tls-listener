@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut};
 #[cfg_attr(docsrs, doc(cfg(any(feature = "hyper-h1", feature = "hyper-h2"))))]
 impl AsyncAccept for AddrIncoming {
     type Connection = AddrStream;
-    type Error = io::Error;
+    type Error = std::io::Error;
 
     fn poll_accept(
         self: Pin<&mut Self>,

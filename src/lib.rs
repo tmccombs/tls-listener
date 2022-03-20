@@ -13,11 +13,12 @@
 //! - `hyper-h1`: hyper support with http/1
 //! - `hyper-h2`: hyper support with http/2
 //! - `tokio-net`: Implementations for tokio socket types (default)
+//! - `rt`: Features that depend on the tokio runtime, such as [`SpawningHandshakes`]
 
 use futures_util::stream::{FuturesUnordered, Stream, StreamExt};
 use pin_project_lite::pin_project;
 #[cfg(feature = "rt")]
-pub use spawning_handshake::SpawningHandshakeTls;
+pub use spawning_handshake::SpawningHandshakes;
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
@@ -52,21 +53,6 @@ pub trait AsyncTls<C: AsyncRead + AsyncWrite>: Clone {
 
     /// Accept a TLS connection on an underlying stream
     fn accept(&self, stream: C) -> Self::AcceptFuture;
-
-    /// Convert this `AsyncTls` into one that will spawna new task for each new connection.
-    ///
-    /// This will wrap each call to [`accept`] with a call to [`tokio::spawn`]. This
-    /// is especially useful when using a multi-threaded runtime, so that the TLS handshakes
-    /// are distributed between multiple threads.
-    #[cfg(feature = "rt")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "rt")))]
-    fn spawning_handshakes(self) -> SpawningHandshakeTls<Self>
-    where
-        Self::AcceptFuture: Send + 'static,
-        Self::Error: Send,
-    {
-        SpawningHandshakeTls(self)
-    }
 }
 
 /// Asynchronously accept connections.

@@ -6,11 +6,16 @@ use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::task::JoinHandle;
 
-/// See [`AsyncTls::spawning_handshakes`]
+/// Convert an [`AsyncTls`] into one that will spawn a new task for each new connection.
+///
+/// This will wrap each call to [`accept`](AsyncTls::accept) with a call to [`tokio::spawn`]. This
+/// is especially useful when using a multi-threaded runtime, so that the TLS handshakes
+/// are distributed between multiple threads.
 #[cfg_attr(docsrs, doc(cfg(feature = "rt")))]
 #[derive(Clone, Debug)]
-pub struct SpawningHandshakeTls<T>(pub(crate) T);
-impl<C, T> AsyncTls<C> for SpawningHandshakeTls<T>
+pub struct SpawningHandshakes<T>(pub T);
+
+impl<C, T> AsyncTls<C> for SpawningHandshakes<T>
 where
     T: AsyncTls<C>,
     C: AsyncRead + AsyncWrite,
@@ -26,13 +31,6 @@ where
         HandshakeJoin {
             inner: tokio::spawn(self.0.accept(stream)),
         }
-    }
-}
-
-impl<T> SpawningHandshakeTls<T> {
-    /// Convert a [`SpawningHandshakeTls`] back into the inner type that it wraps.
-    pub fn into_inner(self) -> T {
-        self.0
     }
 }
 

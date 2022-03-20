@@ -11,6 +11,7 @@ license = "Apache-2.0"
 default = ["tokio-net"]
 rustls = ["tokio-rustls"]
 native-tls = ["tokio-native-tls"]
+rt = ["tokio/rt"]
 
 tokio-net = ["tokio/net"]
 hyper-h1 = ["hyper", "hyper/http1"]
@@ -43,6 +44,11 @@ required-features = ["hyper-h1"]
 name = "echo"
 path = "examples/echo.rs"
 required-features = ["tokio-net"]
+
+[[example]]
+name = "echo-threads"
+path = "examples/echo-threads.rs"
+required-features = ["tokio-net", "rt", "tokio/rt-multi-thread"]
 
 [[example]]
 name = "http-low-level"

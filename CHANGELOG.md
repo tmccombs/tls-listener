@@ -1,12 +1,16 @@
 # Changelog
 
-## 0.4.2 - 2022-04-09
+## 0.4.3 - 2022-03-20
+
+- Added `TlsListener::replace_accept_pin()` function to allow replacing the listener certificate at runtime, when the listener is pinned.
+
+## 0.4.2 - 2022-03-09
 
 ### Added
 
 - Added [TlsListener::replace_acceptor()] function to allow replacing the listener certificate at runtime.
 
-## 0.4.1 - 2022-04-09
+## 0.4.1 - 2022-03-09
 
 ### Changed
 

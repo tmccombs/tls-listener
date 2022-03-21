@@ -28,35 +28,33 @@ where
     type AcceptFuture = HandshakeJoin<T::Stream, T::Error>;
 
     fn accept(&self, stream: C) -> Self::AcceptFuture {
-        HandshakeJoin {
-            inner: tokio::spawn(self.0.accept(stream)),
-        }
+        HandshakeJoin(tokio::spawn(self.0.accept(stream)))
     }
 }
 
+/// Future type returned by [`SpawningHandshakeTls::accept`];
 #[cfg_attr(docsrs, doc(cfg(feature = "rt")))]
-pin_project! {
-    /// Future type returned by [`SpawningHandshakeTls::accept`];
-    pub struct HandshakeJoin<Stream, Error>{
-        #[pin]
-        inner: JoinHandle<Result<Stream, Error>>
-    }
-}
+pub struct HandshakeJoin<Stream, Error>(JoinHandle<Result<Stream, Error>>);
 
-#[cfg_attr(docsrs, doc(cfg(feature = "rt")))]
 impl<Stream, Error> Future for HandshakeJoin<Stream, Error> {
     type Output = Result<Stream, Error>;
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.project().inner.poll(cx) {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match Pin::new(&mut self.as_mut().0).poll(cx) {
             Poll::Ready(Ok(v)) => Poll::Ready(v),
             Poll::Pending => Poll::Pending,
             Poll::Ready(Err(e)) => {
                 if e.is_panic() {
                     std::panic::resume_unwind(e.into_panic());
                 } else {
-                    panic!("Tls handshake was aborted: {:?}", e);
+                    unreachable!("Tls handshake was aborted: {:?}", e);
                 }
             }
         }
+    }
+}
+
+impl<Stream, Error> Drop for HandshakeJoin<Stream, Error> {
+    fn drop(&mut self) {
+        self.0.abort();
     }
 }

@@ -1,10 +1,11 @@
 # Changelog
 
-## 0.5.1
+## Upcoming 0.5.1
 
 ### Fixed
 
 - Fixed compilation on non-unix environments, where tokio-net doesn't include unix sockets
+- `SpawningHandshakes` will abort the tasks for pending connections when the linked futures are dropped. This should allow timeouts to cause the connectionto be closed.
 
 
 ## 0.5.0

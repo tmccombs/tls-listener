@@ -1,13 +1,13 @@
 # Changelog
 
-## 0.5.1
+## Upcoming 0.5.1
 
 ### Fixed
 
 - Fixed compilation on non-unix environments, where tokio-net doesn't include unix sockets
 
 
-## 0.5.0
+## 0.5.0 - 2022-03-20
 
 ### Added
 

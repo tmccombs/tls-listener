@@ -2,9 +2,10 @@ use super::AsyncAccept;
 use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tokio::net::{TcpListener, TcpStream, UnixListener, UnixStream};
+use tokio::net::{TcpListener, TcpStream};
+#[cfg(unix)]
+use tokio::net::{UnixListener, UnixStream};
 
-#[cfg(feature = "tokio-net")]
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio-net")))]
 impl AsyncAccept for TcpListener {
     type Connection = TcpStream;
@@ -22,7 +23,7 @@ impl AsyncAccept for TcpListener {
     }
 }
 
-#[cfg(all(unix, feature = "tokio-net"))]
+#[cfg(unix)]
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio-net")))]
 impl AsyncAccept for UnixListener {
     type Connection = UnixStream;

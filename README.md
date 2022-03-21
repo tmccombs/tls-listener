@@ -14,5 +14,5 @@ one of the `hyper-h1` or `hyper-h2` features).
 
 See examples for examples of usage.
 
-You must enable either one of the `rustls` or `native-tls` features depending on which implementation you would
-like to use.
+You must enable either one of the `rustls`, `native-tls`, or `openssl` features depending on which implementation you 
+would like to use.

@@ -39,10 +39,11 @@ jobs:
           - tokio-net
           - rustls
           - native-tls
+          - openssl
           - rt
           - hyper-h1
           - hyper-h2
-          - rustls,native-tls
+          - rustls,native-tls,openssl
           - tokio-net,rt,rustls
           - tokio-net,native-tls
     steps:

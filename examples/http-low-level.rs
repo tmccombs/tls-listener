@@ -11,6 +11,8 @@ use std::convert::Infallible;
 mod tls_config;
 use tls_config::tls_acceptor;
 
+/// For example try:
+/// `curl https://localhost:3000 -k`
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let addr = ([127, 0, 0, 1], 3000).into();

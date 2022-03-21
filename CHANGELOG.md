@@ -2,11 +2,14 @@
 
 ## Upcoming 0.5.1
 
+### Added
+
+- Support for [`openssl`](https://github.com/sfackler/rust-openssl)
+
 ### Fixed
 
 - Fixed compilation on non-unix environments, where tokio-net doesn't include unix sockets
 - `SpawningHandshakes` will abort the tasks for pending connections when the linked futures are dropped. This should allow timeouts to cause the connectionto be closed.
-
 
 ## 0.5.0 - 2022-03-20
 
@@ -29,7 +32,7 @@
 
 ### Added
 
-- Added [TlsListener::replace_acceptor()] function to allow replacing the listener certificate at runtime.
+- Added `TlsListener::replace_acceptor()` function to allow replacing the listener certificate at runtime.
 
 ## 0.4.1 - 2022-03-09
 

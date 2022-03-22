@@ -228,6 +228,7 @@ where
 }
 
 #[cfg(feature = "rustls")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
 impl<C: AsyncRead + AsyncWrite + Unpin> AsyncTls<C> for tokio_rustls::TlsAcceptor {
     type Stream = tokio_rustls::server::TlsStream<C>;
     type Error = std::io::Error;
@@ -239,6 +240,7 @@ impl<C: AsyncRead + AsyncWrite + Unpin> AsyncTls<C> for tokio_rustls::TlsAccepto
 }
 
 #[cfg(feature = "native-tls")]
+#[cfg_attr(docsrs, doc(cfg(feature = "native-tls")))]
 impl<C> AsyncTls<C> for tokio_native_tls::TlsAcceptor
 where
     C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -254,6 +256,7 @@ where
 }
 
 #[cfg(feature = "openssl")]
+#[cfg_attr(docsrs, doc(cfg(feature = "openssl")))]
 impl<C> AsyncTls<C> for openssl_impl::ssl::SslContext
 where
     C: AsyncRead + AsyncWrite + Unpin + Send + 'static,

@@ -253,6 +253,35 @@ where
     }
 }
 
+#[cfg(feature = "openssl")]
+impl<C> AsyncTls<C> for openssl_impl::ssl::SslContext
+where
+    C: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+{
+    type Stream = tokio_openssl::SslStream<C>;
+    type Error = openssl_impl::ssl::Error;
+    type AcceptFuture = Pin<Box<dyn Future<Output = Result<Self::Stream, Self::Error>> + Send>>;
+
+    fn accept(&self, conn: C) -> Self::AcceptFuture {
+        let ssl = match openssl_impl::ssl::Ssl::new(self) {
+            Ok(s) => s,
+            Err(e) => {
+                return Box::pin(futures_util::future::err(e.into()));
+            }
+        };
+        let mut stream = match tokio_openssl::SslStream::new(ssl, conn) {
+            Ok(s) => s,
+            Err(e) => {
+                return Box::pin(futures_util::future::err(e.into()));
+            }
+        };
+        Box::pin(async move {
+            Pin::new(&mut stream).accept().await?;
+            Ok(stream)
+        })
+    }
+}
+
 impl<T> Builder<T> {
     /// Set the maximum number of concurrent handshakes.
     ///

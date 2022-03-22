@@ -4,8 +4,17 @@ use tls_listener::{AsyncAccept, TlsListener};
 use tokio::io::{copy, split};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::signal::ctrl_c;
-#[cfg(all(feature = "native-tls", not(feature = "rustls")))]
+
+#[cfg(all(
+    feature = "native-tls",
+    not(any(feature = "rustls", feature = "openssl"))
+))]
 use tokio_native_tls::TlsStream;
+#[cfg(all(
+    feature = "openssl",
+    not(any(feature = "rustls", feature = "native-tls"))
+))]
+use tokio_openssl::SslStream as TlsStream;
 #[cfg(feature = "rustls")]
 use tokio_rustls::server::TlsStream;
 
@@ -22,7 +31,7 @@ async fn handle_stream(stream: TlsStream<TcpStream>) {
 }
 
 /// For example try opening and closing a connection with:
-/// `echo "Q" | openssl s_client -connect host:port`
+/// `echo "Q" | openssl s_client -connect localhost:3000`
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr: SocketAddr = ([127, 0, 0, 1], 3000).into();

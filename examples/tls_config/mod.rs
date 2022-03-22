@@ -3,7 +3,7 @@ mod cert {
     pub const CERT: &[u8] = include_bytes!("local.cert");
     pub const PKEY: &[u8] = include_bytes!("local.key");
 }
-#[cfg(feature = "native-tls")]
+#[cfg(all(feature = "native-tls", not(feature = "rustls")))]
 const PFX: &[u8] = include_bytes!("local.pfx");
 
 #[cfg(feature = "rustls")]
@@ -24,10 +24,29 @@ pub fn tls_acceptor() -> tokio_rustls::TlsAcceptor {
     .into()
 }
 
-#[cfg(all(feature = "native-tls", not(feature = "rustls")))]
+#[cfg(all(
+    feature = "native-tls",
+    not(any(feature = "rustls", feature = "openssl"))
+))]
 pub fn tls_acceptor() -> tokio_native_tls::TlsAcceptor {
     use tokio_native_tls::native_tls::{Identity, TlsAcceptor};
 
     let identity = Identity::from_pkcs12(PFX, "").unwrap();
     TlsAcceptor::builder(identity).build().unwrap().into()
+}
+
+#[cfg(all(
+    feature = "openssl",
+    not(any(feature = "rustls", feature = "native-tls"))
+))]
+pub fn tls_acceptor() -> openssl_impl::ssl::SslContext {
+    use openssl_impl::ssl::{SslContext, SslFiletype, SslMethod};
+    let mut builder = SslContext::builder(SslMethod::tls_server()).unwrap();
+    builder
+        .set_certificate_file("./examples/tls_config/local.cert", SslFiletype::ASN1)
+        .unwrap();
+    builder
+        .set_private_key_file("./examples/tls_config/local.key", SslFiletype::ASN1)
+        .unwrap();
+    builder.build()
 }

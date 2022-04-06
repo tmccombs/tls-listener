@@ -55,3 +55,14 @@ jobs:
           profile: minimal
       - name: Check
         run: cargo check --verbose --no-default-features --features "${{ matrix.features }}"
+  test-examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          profile: minimal
+      - name: Test examples
+        run: python -m unittest examples.test_examples

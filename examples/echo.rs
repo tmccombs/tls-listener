@@ -26,7 +26,7 @@ async fn handle_stream(stream: TlsStream<TcpStream>) {
     let (mut reader, mut writer) = split(stream);
     match copy(&mut reader, &mut writer).await {
         Ok(cnt) => eprintln!("Processed {} bytes", cnt),
-        Err(err) => eprintln!("Error: {}", err),
+        Err(err) => eprintln!("Error during copy: {}", err),
     };
 }
 
@@ -45,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     handle_stream(stream).await;
                 }
                 Err(e) => {
-                    eprintln!("Error: {:?}", e);
+                    eprintln!("Error accepting connection: {:?}", e);
                 }
             }
         })

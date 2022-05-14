@@ -58,6 +58,11 @@ name = "http-low-level"
 path = "examples/http-low-level.rs"
 required-features = ["hyper-h1"]
 
+[[example]]
+name = "http-change-certificate"
+path = "examples/http-change-certificate.rs"
+required-features = ["hyper-h1"]
+
 [package.metadata.docs.rs]
 features = ["rustls", "native-tls", "openssl", "hyper-h1", "hyper-h2", "rt"]
 rustdoc-args = ["--cfg", "docsrs"]

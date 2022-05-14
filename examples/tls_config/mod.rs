@@ -63,8 +63,8 @@ mod config {
     not(any(feature = "rustls", feature = "native-tls"))
 ))]
 mod config {
-    use std::path::Path;
     use openssl_impl::ssl::{SslContext, SslFiletype, SslMethod};
+    use std::path::Path;
 
     pub type Acceptor = openssl_impl::ssl::SslContext;
 

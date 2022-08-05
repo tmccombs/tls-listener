@@ -26,6 +26,12 @@ use std::time::Duration;
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::{timeout, Timeout};
+#[cfg(feature = "native-tls")]
+pub use tokio_native_tls as native_tls;
+#[cfg(feature = "openssl")]
+pub use tokio_openssl as openssl;
+#[cfg(feature = "rustls")]
+pub use tokio_rustls as rustls;
 
 #[cfg(feature = "rt")]
 mod spawning_handshake;

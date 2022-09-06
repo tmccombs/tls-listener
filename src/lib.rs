@@ -222,6 +222,10 @@ where
         loop {
             return match this.waiting.poll_next_unpin(cx) {
                 Poll::Ready(Some(Ok(conn))) => {
+                    if conn.is_err() {
+                        eprintln!("Bad Connection");
+                        return Poll::Pending;
+                    }
                     Poll::Ready(Some(conn.map_err(Error::TlsAcceptError)))
                 }
                 // The handshake timed out, try getting another connection from the

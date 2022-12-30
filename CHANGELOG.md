@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0 - 2022-12-30
+
+### Added
+- Added additional tests and examples
+- Re-export tls engine crates as public modules.
+
+### Changed
+- Increased default handshake timeout to 10 seconds (technically a breaking change)
+
 ## 0.5.1 - 2022-03-21
 
 ### Added

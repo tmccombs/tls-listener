@@ -46,7 +46,7 @@ mod net;
 /// Default number of concurrent handshakes
 pub const DEFAULT_MAX_HANDSHAKES: usize = 64;
 /// Default timeout for the TLS handshake.
-pub const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_millis(200);
+pub const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Trait for TLS implementation.
 ///

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.0 - 2023-03-31
+
+### Changed
+- Increase tokio-rustls version to 0.24.0
+
 ## 0.6.0 - 2022-12-30
 
 ### Added

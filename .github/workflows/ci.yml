@@ -15,7 +15,7 @@ jobs:
         rust: [stable, beta, nightly]
     continue-on-error: ${{ matrix.rust == 'nightly' }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
@@ -47,7 +47,7 @@ jobs:
           - tokio-net,rt,rustls
           - tokio-net,native-tls
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -58,7 +58,7 @@ jobs:
   test-examples:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable

@@ -16,12 +16,10 @@ jobs:
     continue-on-error: ${{ matrix.rust == 'nightly' }}
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          override: true
-          profile: minimal
-          components: rustfmt, clippy
+      - name: Install toolchain
+        run: |
+          rustup toolchain install ${{ matrix.rust }} --profile minimal --component clippy,rustfmt
+          rustup default ${{ matrix.rust }}
       - name: Build
         run: cargo build --verbose --examples --all-features
       - name: Test
@@ -48,21 +46,17 @@ jobs:
           - tokio-net,native-tls
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-          profile: minimal
+      - run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
       - name: Check
         run: cargo check --verbose --no-default-features --features "${{ matrix.features }}"
   test-examples:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-          profile: minimal
+      - run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
       - name: Test examples
         run: python -m unittest examples.test_examples

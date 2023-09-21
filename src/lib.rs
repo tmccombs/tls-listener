@@ -142,6 +142,7 @@ pub struct Builder<T> {
 
 /// Wraps errors from either the listener or the TLS Acceptor
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum Error<LE: std::error::Error, TE: std::error::Error> {
     /// An error that arose from the listener ([AsyncAccept::Error])
     #[error("{0}")]
@@ -149,6 +150,12 @@ pub enum Error<LE: std::error::Error, TE: std::error::Error> {
     /// An error that occurred during the TLS accept handshake
     #[error("{0}")]
     TlsAcceptError(#[source] TE),
+    // TODO: is there any way we could include thee original connection, or maybe some
+    // info about it here?
+    /// The TLS handshake timed out
+    #[error("Timeout during TLS handshake")]
+    #[non_exhaustive]
+    HandshakeTimeout {},
 }
 
 impl<A: AsyncAccept, T> TlsListener<A, T>
@@ -219,16 +226,12 @@ where
             }
         }
 
-        loop {
-            return match this.waiting.poll_next_unpin(cx) {
-                Poll::Ready(Some(Ok(conn))) => {
-                    Poll::Ready(Some(conn.map_err(Error::TlsAcceptError)))
-                }
-                // The handshake timed out, try getting another connection from the
-                // queue
-                Poll::Ready(Some(Err(_))) => continue,
-                _ => Poll::Pending,
-            };
+        match this.waiting.poll_next_unpin(cx) {
+            Poll::Ready(Some(Ok(conn))) => Poll::Ready(Some(conn.map_err(Error::TlsAcceptError))),
+            // The handshake timed out, try getting another connection from the
+            // queue
+            Poll::Ready(Some(Err(_))) => Poll::Ready(Some(Err(Error::HandshakeTimeout()))),
+            _ => Poll::Pending,
         }
     }
 }

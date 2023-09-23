@@ -10,13 +10,14 @@ use tokio::net::{UnixListener, UnixStream};
 impl AsyncAccept for TcpListener {
     type Connection = TcpStream;
     type Error = io::Error;
+    type Address = std::net::SocketAddr;
 
     fn poll_accept(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Self::Connection, Self::Error>>> {
+    ) -> Poll<Option<Result<(Self::Connection, Self::Address), Self::Error>>> {
         match (*self).poll_accept(cx) {
-            Poll::Ready(Ok((stream, _))) => Poll::Ready(Some(Ok(stream))),
+            Poll::Ready(Ok((stream, remote_addr))) => Poll::Ready(Some(Ok((stream, remote_addr)))),
             Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
             Poll::Pending => Poll::Pending,
         }
@@ -28,13 +29,14 @@ impl AsyncAccept for TcpListener {
 impl AsyncAccept for UnixListener {
     type Connection = UnixStream;
     type Error = io::Error;
+    type Address = tokio::net::unix::SocketAddr;
 
     fn poll_accept(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Self::Connection, Self::Error>>> {
+    ) -> Poll<Option<Result<(Self::Connection, Self::Address), Self::Error>>> {
         match (*self).poll_accept(cx) {
-            Poll::Ready(Ok((stream, _))) => Poll::Ready(Some(Ok(stream))),
+            Poll::Ready(Ok((stream, remote_addr))) => Poll::Ready(Some(Ok((stream, remote_addr)))),
             Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
             Poll::Pending => Poll::Pending,
         }

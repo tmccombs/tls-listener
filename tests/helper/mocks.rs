@@ -2,6 +2,7 @@ use futures_util::future::{self, Ready};
 use futures_util::ready;
 use std::io;
 use std::pin::Pin;
+use std::sync::atomic::{self, AtomicU32};
 use std::task::{Context, Poll};
 use tokio::io::{
     duplex, split, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, DuplexStream, ReadBuf,
@@ -10,7 +11,7 @@ use tokio::sync::mpsc;
 
 use tls_listener::{AsyncAccept, AsyncTls};
 
-type ConnResult = io::Result<DuplexStream>;
+type ConnResult = io::Result<(DuplexStream, MockAddress)>;
 
 pub struct MockAccept {
     chan: mpsc::Receiver<ConnResult>,
@@ -18,17 +19,28 @@ pub struct MockAccept {
 
 pub struct MockConnect {
     chan: mpsc::Sender<ConnResult>,
+    counter: AtomicU32,
 }
+
+#[derive(Clone, Copy, Debug)]
+pub struct MockAddress(pub u32);
 
 pub fn accepting() -> (MockConnect, MockAccept) {
     let (tx, rx) = mpsc::channel(32);
-    (MockConnect { chan: tx }, MockAccept { chan: rx })
+    (
+        MockConnect {
+            chan: tx,
+            counter: AtomicU32::new(42),
+        },
+        MockAccept { chan: rx },
+    )
 }
 
 impl MockConnect {
     pub async fn connect(&self) -> DuplexStream {
         let (tx, rx) = duplex(1024);
-        self.chan.send(Ok(rx)).await.unwrap();
+        let count = self.counter.fetch_add(1, atomic::Ordering::Relaxed);
+        self.chan.send(Ok((rx, MockAddress(count)))).await.unwrap();
         tx
     }
 
@@ -56,6 +68,7 @@ impl MockConnect {
 impl AsyncAccept for MockAccept {
     type Connection = DuplexStream;
     type Error = io::Error;
+    type Address = MockAddress;
 
     fn poll_accept(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<ConnResult>> {
         Pin::into_inner(self).chan.poll_recv(cx)

@@ -19,6 +19,7 @@ async fn accept_connections() {
 
     spawn(listener.for_each_concurrent(None, |s| async {
         s.expect("unexpected error")
+            .0
             .write_all(b"HELLO, WORLD!")
             .await
             .unwrap();
@@ -65,7 +66,13 @@ async fn tls_error() {
     spawn(async move { connect.send_data(b"foo").await });
     let mut listener = TlsListener::new(ErrTls, accept);
 
-    assert_err!(listener.accept().await.unwrap(), TlsAcceptError(_));
+    assert_err!(
+        listener.accept().await.unwrap(),
+        TlsAcceptError {
+            remote_addr: MockAddress(42),
+            ..
+        }
+    );
 }
 
 #[tokio::test]
@@ -77,7 +84,8 @@ async fn accept_ended() {
     });
 
     let res = listener.accept().await;
-    if let Some(Ok(mut stream)) = res {
+    if let Some(Ok((mut stream, MockAddress(stream_id)))) = res {
+        assert_eq!(stream_id, 42);
         stream.write_all(b"ABC").await.unwrap();
     } else {
         panic!("Failed to accept stream. Got {:?}", res);

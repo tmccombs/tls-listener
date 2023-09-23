@@ -30,18 +30,22 @@ async fn main() {
         tokio::select! {
             conn = listener.accept() => {
                 match conn.expect("Tls listener stream should be infinite") {
-                    Ok(conn) => {
+                    Ok((conn, remote_addr)) => {
                         let http = http.clone();
                         let tx = tx.clone();
                         let counter = counter.clone();
                         tokio::spawn(async move {
                             let svc = service_fn(move |request| handle_request(tx.clone(), counter.clone(), request));
                             if let Err(err) = http.serve_connection(conn, svc).await {
-                                eprintln!("Application error: {}", err);
+                                eprintln!("Application error (client address: {remote_addr}): {}", err);
                             }
                         });
                     },
                     Err(e) => {
+                        if let Some(remote_addr) = e.remote_addr() {
+                            eprint!("[client {remote_addr}] ");
+                        }
+
                         eprintln!("Bad connection: {}", e);
                     }
                 }

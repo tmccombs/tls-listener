@@ -7,12 +7,16 @@ use std::ops::{Deref, DerefMut};
 impl AsyncAccept for AddrIncoming {
     type Connection = AddrStream;
     type Error = std::io::Error;
+    type Address = std::net::SocketAddr;
 
     fn poll_accept(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Self::Connection, Self::Error>>> {
-        <AddrIncoming as HyperAccept>::poll_accept(self, cx)
+    ) -> Poll<Option<Result<(Self::Connection, Self::Address), Self::Error>>> {
+        <AddrIncoming as HyperAccept>::poll_accept(self, cx).map_ok(|conn| {
+            let remote_addr = conn.remote_addr();
+            (conn, remote_addr)
+        })
     }
 }
 
@@ -22,6 +26,11 @@ pin_project! {
     /// Unfortunately, it isn't possible to use a blanket impl, due to coherence rules.
     /// At least until [RFC 1210](https://rust-lang.github.io/rfcs/1210-impl-specialization.html)
     /// (specialization) is stabilized.
+    ///
+    /// Note that, because `hyper::server::accept::Accept` does not expose the
+    /// remote address, the implementation of `AsyncAccept` for `WrappedAccept`
+    /// doesn't expose it either. That is, [`AsyncAccept::Address`] is `()` in
+    /// this case.
     //#[cfg_attr(docsrs, doc(cfg(any(feature = "hyper-h1", feature = "hyper-h2"))))]
     pub struct WrappedAccept<A> {
         // sadly, pin-project-lite doesn't suport tuple structs :(
@@ -46,12 +55,16 @@ where
 {
     type Connection = A::Conn;
     type Error = A::Error;
+    type Address = ();
 
     fn poll_accept(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Self::Connection, Self::Error>>> {
-        self.project().inner.poll_accept(cx)
+    ) -> Poll<Option<Result<(Self::Connection, Self::Address), Self::Error>>> {
+        self.project()
+            .inner
+            .poll_accept(cx)
+            .map_ok(|conn| (conn, ()))
     }
 }
 
@@ -95,12 +108,12 @@ where
     T: AsyncTls<A::Connection>,
 {
     type Conn = T::Stream;
-    type Error = Error<A::Error, T::Error>;
+    type Error = Error<A::Error, T::Error, A::Address>;
 
     fn poll_accept(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
-        self.poll_next(cx)
+        self.poll_next(cx).map_ok(|(conn, _)| conn)
     }
 }

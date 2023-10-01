@@ -15,7 +15,7 @@ jobs:
         rust: [stable, beta, nightly]
     continue-on-error: ${{ matrix.rust == 'nightly' }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install toolchain
         run: |
           rustup toolchain install ${{ matrix.rust }} --profile minimal --component clippy,rustfmt
@@ -45,7 +45,7 @@ jobs:
           - tokio-net,rt,rustls
           - tokio-net,native-tls
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
@@ -54,7 +54,7 @@ jobs:
   test-examples:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: |
           rustup toolchain install stable --profile minimal
           rustup default stable

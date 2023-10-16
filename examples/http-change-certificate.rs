@@ -37,12 +37,12 @@ async fn main() {
                         tokio::spawn(async move {
                             let svc = service_fn(move |request| handle_request(tx.clone(), counter.clone(), request));
                             if let Err(err) = http.serve_connection(conn, svc).await {
-                                eprintln!("Application error (client address: {remote_addr}): {}", err);
+                                eprintln!("Application error (client address: {remote_addr}): {err}");
                             }
                         });
                     },
                     Err(e) => {
-                        if let Some(remote_addr) = e.remote_addr() {
+                        if let Some(remote_addr) = e.peer_addr() {
                             eprint!("[client {remote_addr}] ");
                         }
 

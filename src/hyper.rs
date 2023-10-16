@@ -14,8 +14,8 @@ impl AsyncAccept for AddrIncoming {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<(Self::Connection, Self::Address), Self::Error>>> {
         <AddrIncoming as HyperAccept>::poll_accept(self, cx).map_ok(|conn| {
-            let remote_addr = conn.remote_addr();
-            (conn, remote_addr)
+            let peer_addr = conn.remote_addr();
+            (conn, peer_addr)
         })
     }
 }
@@ -52,6 +52,7 @@ pub fn wrap<A: HyperAccept>(acceptor: A) -> WrappedAccept<A> {
 impl<A: HyperAccept> AsyncAccept for WrappedAccept<A>
 where
     A::Conn: AsyncRead + AsyncWrite,
+    A::Error: std::error::Error,
 {
     type Connection = A::Conn;
     type Error = A::Error;
@@ -60,7 +61,7 @@ where
     fn poll_accept(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<(Self::Connection, Self::Address), Self::Error>>> {
+    ) -> Poll<Option<Result<(Self::Connection, ()), Self::Error>>> {
         self.project()
             .inner
             .poll_accept(cx)
@@ -91,6 +92,7 @@ impl<A: HyperAccept> WrappedAccept<A> {
 impl<A: HyperAccept, T> TlsListener<WrappedAccept<A>, T>
 where
     A::Conn: AsyncWrite + AsyncRead,
+    A::Error: std::error::Error,
     T: AsyncTls<A::Conn>,
 {
     /// Create a `TlsListener` from a hyper [`Accept`](::hyper::server::accept::Accept) and tls

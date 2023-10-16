@@ -1,4 +1,4 @@
-use futures_util::stream::{StreamExt, TryStreamExt};
+use futures_util::stream::StreamExt;
 use hyper::server::accept;
 use hyper::server::conn::AddrIncoming;
 use hyper::service::{make_service_fn, service_fn};
@@ -23,6 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // This uses a filter to handle errors with connecting
     let incoming = TlsListener::new(tls_acceptor(), AddrIncoming::bind(&addr)?)
+        .connections()
         .filter(|conn| {
             if let Err(err) = conn {
                 eprintln!("Error: {:?}", err);
@@ -30,8 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 ready(true)
             }
-        })
-        .map_ok(|(conn, _remote_addr)| conn);
+        });
 
     let server = Server::builder(accept::from_stream(incoming)).serve(new_svc);
     server.await?;

@@ -17,7 +17,7 @@ impl AsyncAccept for TcpListener {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<(Self::Connection, Self::Address), Self::Error>>> {
         match (*self).poll_accept(cx) {
-            Poll::Ready(Ok((stream, remote_addr))) => Poll::Ready(Some(Ok((stream, remote_addr)))),
+            Poll::Ready(Ok(conn)) => Poll::Ready(Some(Ok(conn))),
             Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
             Poll::Pending => Poll::Pending,
         }
@@ -36,7 +36,7 @@ impl AsyncAccept for UnixListener {
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<(Self::Connection, Self::Address), Self::Error>>> {
         match (*self).poll_accept(cx) {
-            Poll::Ready(Ok((stream, remote_addr))) => Poll::Ready(Some(Ok((stream, remote_addr)))),
+            Poll::Ready(Ok(conn)) => Poll::Ready(Some(Ok(conn))),
             Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
             Poll::Pending => Poll::Pending,
         }

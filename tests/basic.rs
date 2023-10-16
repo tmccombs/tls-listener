@@ -69,7 +69,7 @@ async fn tls_error() {
     assert_err!(
         listener.accept().await.unwrap(),
         TlsAcceptError {
-            remote_addr: MockAddress(42),
+            peer_addr: MockAddress(42),
             ..
         }
     );
@@ -121,5 +121,20 @@ async fn echo() {
 
     if let Err(e) = listener.await {
         std::panic::resume_unwind(e.into_panic());
+    }
+}
+
+#[tokio::test]
+async fn addr() {
+    let (connector, mut listener) = setup();
+
+    spawn(async move {
+        connector.send_data(b"hi").await.unwrap();
+        connector.send_data(b"boo").await.unwrap();
+        connector.send_data(b"test").await.unwrap();
+    });
+
+    for i in 42..44 {
+        assert_eq!(listener.accept().await.unwrap().unwrap().1, MockAddress(i));
     }
 }

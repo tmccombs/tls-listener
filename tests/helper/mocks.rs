@@ -2,7 +2,7 @@ use futures_util::future::{self, Ready};
 use futures_util::ready;
 use std::io;
 use std::pin::Pin;
-use std::sync::atomic::{self, AtomicU32};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::task::{Context, Poll};
 use tokio::io::{
     duplex, split, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, DuplexStream, ReadBuf,
@@ -22,7 +22,7 @@ pub struct MockConnect {
     counter: AtomicU32,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MockAddress(pub u32);
 
 pub fn accepting() -> (MockConnect, MockAccept) {
@@ -39,7 +39,7 @@ pub fn accepting() -> (MockConnect, MockAccept) {
 impl MockConnect {
     pub async fn connect(&self) -> DuplexStream {
         let (tx, rx) = duplex(1024);
-        let count = self.counter.fetch_add(1, atomic::Ordering::Relaxed);
+        let count = self.counter.fetch_add(1, Ordering::Relaxed);
         self.chan.send(Ok((rx, MockAddress(count)))).await.unwrap();
         tx
     }

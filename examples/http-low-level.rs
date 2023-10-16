@@ -36,7 +36,7 @@ async fn main() {
                     });
                 }
                 Err(err) => {
-                    if let Some(remote_addr) = err.remote_addr() {
+                    if let Some(remote_addr) = err.peer_addr() {
                         eprint!("[client {remote_addr}] ");
                     }
 

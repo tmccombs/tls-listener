@@ -45,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     handle_stream(stream, remote_addr).await;
                 }
                 Err(e) => {
-                    if let Some(remote_addr) = e.remote_addr() {
+                    if let Some(remote_addr) = e.peer_addr() {
                         eprint!("[client {remote_addr}] ");
                     }
 

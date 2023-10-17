@@ -18,7 +18,7 @@ pub fn setup_echo() -> (MockConnect, JoinHandle<()>) {
     let (connector, listener) = setup();
 
     let handle = tokio::spawn(listener.for_each_concurrent(None, |s| async {
-        let (mut reader, mut writer) = split(s.expect("Unexpected error"));
+        let (mut reader, mut writer) = split(s.expect("Unexpected error").0);
         copy(&mut reader, &mut writer)
             .await
             .expect("Failed to copy");

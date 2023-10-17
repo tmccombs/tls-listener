@@ -22,7 +22,7 @@ mod tls_config;
 use tls_config::tls_acceptor;
 
 #[inline]
-async fn handle_stream(stream: TlsStream<TcpStream>) {
+async fn handle_stream(stream: TlsStream<TcpStream>, _remote_addr: SocketAddr) {
     let (mut reader, mut writer) = split(stream);
     match copy(&mut reader, &mut writer).await {
         Ok(cnt) => eprintln!("Processed {} bytes", cnt),
@@ -41,10 +41,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     TlsListener::new(tls_acceptor(), listener)
         .for_each_concurrent(None, |s| async {
             match s {
-                Ok(stream) => {
-                    handle_stream(stream).await;
+                Ok((stream, remote_addr)) => {
+                    handle_stream(stream, remote_addr).await;
                 }
                 Err(e) => {
+                    if let Some(remote_addr) = e.peer_addr() {
+                        eprint!("[client {remote_addr}] ");
+                    }
+
                     eprintln!("Error accepting connection: {:?}", e);
                 }
             }

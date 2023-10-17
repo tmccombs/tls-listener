@@ -22,14 +22,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // This uses a filter to handle errors with connecting
-    let incoming = TlsListener::new(tls_acceptor(), AddrIncoming::bind(&addr)?).filter(|conn| {
-        if let Err(err) = conn {
-            eprintln!("Error: {:?}", err);
-            ready(false)
-        } else {
-            ready(true)
-        }
-    });
+    let incoming = TlsListener::new(tls_acceptor(), AddrIncoming::bind(&addr)?)
+        .connections()
+        .filter(|conn| {
+            if let Err(err) = conn {
+                eprintln!("Error: {:?}", err);
+                ready(false)
+            } else {
+                ready(true)
+            }
+        });
 
     let server = Server::builder(accept::from_stream(incoming)).serve(new_svc);
     server.await?;

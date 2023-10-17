@@ -15,13 +15,14 @@
 //! - `tokio-net`: Implementations for tokio socket types (default)
 //! - `rt`: Features that depend on the tokio runtime, such as [`SpawningHandshakes`]
 
-use futures_util::stream::{FuturesUnordered, Stream, StreamExt};
+use futures_util::stream::{FuturesUnordered, Stream, StreamExt, TryStreamExt};
 use pin_project_lite::pin_project;
 #[cfg(feature = "rt")]
 pub use spawning_handshake::SpawningHandshakes;
+use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::{ready, Context, Poll};
 use std::time::Duration;
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -67,14 +68,22 @@ pub trait AsyncTls<C: AsyncRead + AsyncWrite>: Clone {
 pub trait AsyncAccept {
     /// The type of the connection that is accepted.
     type Connection: AsyncRead + AsyncWrite;
+    /// The type of the remote address, such as [`std::net::SocketAddr`].
+    ///
+    /// If no remote address can be determined (such as for mock connections),
+    /// `()` or a similar dummy type can be used.
+    type Address: Debug;
     /// The type of error that may be returned.
-    type Error;
+    type Error: std::error::Error;
 
     /// Poll to accept the next connection.
+    ///
+    /// On success return the new connection, and the address of the peer.
+    #[allow(clippy::type_complexity)]
     fn poll_accept(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Self::Connection, Self::Error>>>;
+    ) -> Poll<Option<Result<(Self::Connection, Self::Address), Self::Error>>>;
 
     /// Return a new `AsyncAccept` that stops accepting connections after
     /// `ender` completes.
@@ -126,7 +135,7 @@ pin_project! {
         #[pin]
         listener: A,
         tls: T,
-        waiting: FuturesUnordered<Timeout<T::AcceptFuture>>,
+        waiting: FuturesUnordered<Waiting<A, T>>,
         max_handshakes: usize,
         timeout: Duration,
     }
@@ -142,13 +151,29 @@ pub struct Builder<T> {
 
 /// Wraps errors from either the listener or the TLS Acceptor
 #[derive(Debug, Error)]
-pub enum Error<LE: std::error::Error, TE: std::error::Error> {
+#[non_exhaustive]
+pub enum Error<LE: std::error::Error, TE: std::error::Error, Addr> {
     /// An error that arose from the listener ([AsyncAccept::Error])
     #[error("{0}")]
     ListenerError(#[source] LE),
     /// An error that occurred during the TLS accept handshake
-    #[error("{0}")]
-    TlsAcceptError(#[source] TE),
+    #[error("{error}")]
+    #[non_exhaustive]
+    TlsAcceptError {
+        /// The original error that occurred
+        #[source]
+        error: TE,
+
+        /// Address of the other side of the connection
+        peer_addr: Addr,
+    },
+    /// The TLS handshake timed out
+    #[error("Timeout during TLS handshake")]
+    #[non_exhaustive]
+    HandshakeTimeout {
+        /// Address of the other side of the connection
+        peer_addr: Addr,
+    },
 }
 
 impl<A: AsyncAccept, T> TlsListener<A, T>
@@ -161,10 +186,17 @@ where
     }
 }
 
+/// Convenience type alias to get the proper error type from the type of the [`AsyncAccept`] and
+/// [`AsyncTls`] used.
+type TlsListenerError<A, T> = Error<
+    <A as AsyncAccept>::Error,
+    <T as AsyncTls<<A as AsyncAccept>::Connection>>::Error,
+    <A as AsyncAccept>::Address,
+>;
+
 impl<A, T> TlsListener<A, T>
 where
     A: AsyncAccept,
-    A::Error: std::error::Error,
     T: AsyncTls<A::Connection>,
 {
     /// Accept the next connection
@@ -192,15 +224,24 @@ where
     pub fn replace_acceptor_pin(self: Pin<&mut Self>, acceptor: T) {
         *self.project().tls = acceptor;
     }
+
+    /// Convert into a Stream of connections.
+    ///
+    /// This drops the address of the connection, but provides a more convenient API
+    /// if the address isn't needed.
+    ///
+    /// The address will still be included in errors.
+    pub fn connections(self) -> impl Stream<Item = Result<T::Stream, TlsListenerError<A, T>>> {
+        self.map_ok(|(conn, _addr)| conn)
+    }
 }
 
 impl<A, T> Stream for TlsListener<A, T>
 where
     A: AsyncAccept,
-    A::Error: std::error::Error,
     T: AsyncTls<A::Connection>,
 {
-    type Item = Result<T::Stream, Error<A::Error, T::Error>>;
+    type Item = Result<(T::Stream, A::Address), TlsListenerError<A, T>>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
@@ -208,9 +249,11 @@ where
         while this.waiting.len() < *this.max_handshakes {
             match this.listener.as_mut().poll_accept(cx) {
                 Poll::Pending => break,
-                Poll::Ready(Some(Ok(conn))) => {
-                    this.waiting
-                        .push(timeout(*this.timeout, this.tls.accept(conn)));
+                Poll::Ready(Some(Ok((conn, addr)))) => {
+                    this.waiting.push(Waiting {
+                        inner: timeout(*this.timeout, this.tls.accept(conn)),
+                        peer_addr: Some(addr),
+                    });
                 }
                 Poll::Ready(Some(Err(e))) => {
                     return Poll::Ready(Some(Err(Error::ListenerError(e))));
@@ -219,16 +262,12 @@ where
             }
         }
 
-        loop {
-            return match this.waiting.poll_next_unpin(cx) {
-                Poll::Ready(Some(Ok(conn))) => {
-                    Poll::Ready(Some(conn.map_err(Error::TlsAcceptError)))
-                }
-                // The handshake timed out, try getting another connection from the
-                // queue
-                Poll::Ready(Some(Err(_))) => continue,
-                _ => Poll::Pending,
-            };
+        match this.waiting.poll_next_unpin(cx) {
+            // If we don't have anything waiting yet,
+            // then we are still pending,
+            Poll::Ready(None) => Poll::Pending,
+            // Otherwise the result is already what we want
+            result => result,
         }
     }
 }
@@ -334,6 +373,22 @@ impl<T> Builder<T> {
     }
 }
 
+impl<LE: std::error::Error, TE: std::error::Error, A> Error<LE, TE, A> {
+    /// Get the peer address from the connection that caused the error, if applicable.
+    ///
+    /// This will only return Some for errors that occur after an initial connection
+    /// is established, such as TlsAcceptError and HandshakeTimeout. And only if
+    /// the [`AsyncAccept`] implementation implements [`peer_addr`](AsyncAccept::peer_addr)
+    pub fn peer_addr(&self) -> Option<&A> {
+        match self {
+            Error::TlsAcceptError { peer_addr, .. } | Self::HandshakeTimeout { peer_addr, .. } => {
+                Some(peer_addr)
+            }
+            _ => None,
+        }
+    }
+}
+
 /// Create a new Builder for a TlsListener
 ///
 /// `server_config` will be used to configure the TLS sessions.
@@ -342,6 +397,46 @@ pub fn builder<T>(tls: T) -> Builder<T> {
         tls,
         max_handshakes: DEFAULT_MAX_HANDSHAKES,
         handshake_timeout: DEFAULT_HANDSHAKE_TIMEOUT,
+    }
+}
+
+pin_project! {
+    struct Waiting<A, T>
+    where
+        A: AsyncAccept,
+        T: AsyncTls<A::Connection>
+    {
+        #[pin]
+        inner: Timeout<T::AcceptFuture>,
+        peer_addr: Option<A::Address>,
+    }
+}
+
+impl<A, T> Future for Waiting<A, T>
+where
+    A: AsyncAccept,
+    T: AsyncTls<A::Connection>,
+{
+    type Output = Result<(T::Stream, A::Address), TlsListenerError<A, T>>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+        let res = ready!(this.inner.as_mut().poll(cx));
+        let addr = this
+            .peer_addr
+            .take()
+            .expect("this future has already been polled to completion");
+        match res {
+            // We succesfully got a connection
+            Ok(Ok(conn)) => Poll::Ready(Ok((conn, addr))),
+            // The handshake failed
+            Ok(Err(e)) => Poll::Ready(Err(Error::TlsAcceptError {
+                error: e,
+                peer_addr: addr,
+            })),
+            // The handshake timed out
+            Err(_) => Poll::Ready(Err(Error::HandshakeTimeout { peer_addr: addr })),
+        }
     }
 }
 
@@ -358,11 +453,12 @@ pin_project! {
 impl<A: AsyncAccept, E: Future> AsyncAccept for Until<A, E> {
     type Connection = A::Connection;
     type Error = A::Error;
+    type Address = A::Address;
 
     fn poll_accept(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<Self::Connection, Self::Error>>> {
+    ) -> Poll<Option<Result<(Self::Connection, Self::Address), Self::Error>>> {
         let this = self.project();
 
         match this.ender.poll(cx) {

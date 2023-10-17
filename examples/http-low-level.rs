@@ -27,15 +27,19 @@ async fn main() {
     listener
         .for_each(|r| async {
             match r {
-                Ok(conn) => {
+                Ok((conn, remote_addr)) => {
                     let http = http.clone();
                     tokio::spawn(async move {
                         if let Err(err) = http.serve_connection(conn, svc).await {
-                            eprintln!("Application error: {}", err);
+                            eprintln!("[client {remote_addr}] Application error: {}", err);
                         }
                     });
                 }
                 Err(err) => {
+                    if let Some(remote_addr) = err.peer_addr() {
+                        eprint!("[client {remote_addr}] ");
+                    }
+
                     eprintln!("Error accepting connection: {}", err);
                 }
             }

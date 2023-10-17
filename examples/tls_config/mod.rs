@@ -5,7 +5,9 @@ mod config {
 
     const CERT: &[u8] = include_bytes!("local.cert");
     const PKEY: &[u8] = include_bytes!("local.key");
+    #[allow(dead_code)]
     const CERT2: &[u8] = include_bytes!("local2.cert");
+    #[allow(dead_code)]
     const PKEY2: &[u8] = include_bytes!("local2.key");
 
     pub type Acceptor = tokio_rustls::TlsAcceptor;
@@ -27,6 +29,7 @@ mod config {
         tls_acceptor_impl(PKEY, CERT)
     }
 
+    #[allow(dead_code)]
     pub fn tls_acceptor2() -> Acceptor {
         tls_acceptor_impl(PKEY2, CERT2)
     }

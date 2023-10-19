@@ -1,5 +1,30 @@
 # Changelog
 
+All notable changes to this project will be documented in this file.
+
+## [0.8.0] - 2023-10-19
+
+This is a backwards incompatible release. The main change is that accepting a new connection now returns a tuple of the new connection, and the peer
+address. The `AsyncAccept` trait was also changed similarly. The `Error` enum was also changed to provide more details about the error. And if
+the handshake times out, it now returns an error instead of silently waiting for the next connection.
+
+### Features
+
+- [**breaking**] Add a new error type for handshake timeouts
+    * BREAKING CHANGE: Adds a new variant to the Error Enum
+    * BREAKING CHANGE: The Error enum is now non_exhaustive
+    * BREAKING CHANGE: Now returns an error if a handshake times out
+
+- [**breaking**] Yield remote address upon accepting a connection, and include it in errors.
+    * BREAKING CHANGE: The enum variant `Error::ListenerError` is now struct-like instead of tuple-like, and is `non_exhaustive` like the enum itself.
+    * BREAKING CHANGE: `Error` now has three type parameters, not two.
+    * BREAKING CHANGE: `TlsListener::accept` and `<TlsListener as Stream>::next` yields a tuple of (connection, remote address), not just the connection.
+    * BREAKING CHANGE: `AsyncAccept` now has an associated type `Address`, which `poll_accept` must now return along with the accepted connection.
+
+- [**breaking**] More changes for including peer address in response
+    * BREAKING CHANGE: AsyncAccept::Error must implement std::error::Error
+    * BREAKING CHANGE: TlsAcceptError is now a struct form variant.
+
 ## 0.7.0 - 2023-03-31
 
 ### Changed

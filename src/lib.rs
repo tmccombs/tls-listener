@@ -10,8 +10,6 @@
 //! # Features:
 //! - `rustls`: Support the tokio-rustls backend for tls (default)
 //! - `native-tls`: support the tokio-native-tls backend for tls
-//! - `hyper-h1`: hyper support with http/1
-//! - `hyper-h2`: hyper support with http/2
 //! - `tokio-net`: Implementations for tokio socket types (default)
 //! - `rt`: Features that depend on the tokio runtime, such as [`SpawningHandshakes`]
 
@@ -36,10 +34,6 @@ pub use tokio_rustls as rustls;
 
 #[cfg(feature = "rt")]
 mod spawning_handshake;
-
-/// This module contains feature specific to integrating with the hyper library.
-#[cfg(any(feature = "hyper-h1", feature = "hyper-h2"))]
-pub mod hyper;
 
 #[cfg(feature = "tokio-net")]
 mod net;
@@ -118,15 +112,14 @@ pin_project! {
     /// simultaneously while the TLS handshake is pending for other connections.
     ///
     /// By default, if a client fails the TLS handshake, that is treated as an error, and the
-    /// `TlsListener` will return an `Err`. If the `TlsListener` is passed directly to a hyper
-    /// [`Server`][1], then an invalid handshake can cause the server to stop accepting connections.
+    /// `TlsListener` will return an `Err`. If the error is not handled, then an invalid handshake can
+    /// cause the server to stop accepting connections.
     /// See [`http-stream.rs`][2] or [`http-low-level`][3] examples, for examples of how to avoid this.
     ///
     /// Note that if the maximum number of pending connections is greater than 1, the resulting
     /// [`T::Stream`][4] connections may come in a different order than the connections produced by the
     /// underlying listener.
     ///
-    /// [1]: https://docs.rs/hyper/latest/hyper/server/struct.Server.html
     /// [2]: https://github.com/tmccombs/tls-listener/blob/main/examples/http-stream.rs
     /// [3]: https://github.com/tmccombs/tls-listener/blob/main/examples/http-low-level.rs
     /// [4]: AsyncTls::Stream

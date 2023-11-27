@@ -15,12 +15,9 @@ openssl = ["tokio-openssl", "openssl_impl"]
 rt = ["tokio/rt"]
 
 tokio-net = ["tokio/net"]
-hyper-h1 = ["hyper", "hyper/http1"]
-hyper-h2 = ["hyper", "hyper/http2"]
 
 [dependencies]
 futures-util = "0.3.8"
-hyper = { version = "0.14.1", features = ["server", "tcp"], optional = true }
 pin-project-lite = "0.2.13"
 thiserror = "1.0.30"
 tokio = { version = "1.0", features = ["time"] }
@@ -30,7 +27,8 @@ tokio-openssl = { version = "0.6.3", optional = true }
 openssl_impl = { package = "openssl", version = "0.10.32", optional = true }
 
 [dev-dependencies]
-hyper = { version = "0.14.1", features = ["http1", "stream"] }
+hyper = { version = "1.0", features = ["http1", "server"] }
+hyper-util = { version = "0.1.1", features = ["tokio"] }
 tokio = { version = "1.0", features = [
     "rt",
     "macros",
@@ -42,12 +40,10 @@ tokio = { version = "1.0", features = [
 [[example]]
 name = "http"
 path = "examples/http.rs"
-required-features = ["hyper-h1"]
 
 [[example]]
 name = "http-stream"
 path = "examples/http-stream.rs"
-required-features = ["hyper-h1"]
 
 [[example]]
 name = "echo"
@@ -60,15 +56,9 @@ path = "examples/echo-threads.rs"
 required-features = ["tokio-net", "rt", "tokio/rt-multi-thread"]
 
 [[example]]
-name = "http-low-level"
-path = "examples/http-low-level.rs"
-required-features = ["hyper-h1"]
-
-[[example]]
 name = "http-change-certificate"
 path = "examples/http-change-certificate.rs"
-required-features = ["hyper-h1"]
 
 [package.metadata.docs.rs]
-features = ["rustls", "native-tls", "openssl", "hyper-h1", "hyper-h2", "rt"]
+features = ["rustls", "native-tls", "openssl", "rt"]
 rustdoc-args = ["--cfg", "docsrs"]

@@ -56,7 +56,7 @@ def build_examples():
             "build",
             "--examples",
             "--features",
-            "rustls,hyper-h1,rt,tokio/rt-multi-thread",
+            "rustls,rt,tokio/rt-multi-thread",
         ]
     )
     proc.check_returncode()
@@ -127,11 +127,6 @@ class TestExamples(unittest.TestCase):
 
     def test_http_stream(self):
         with run_example("http-stream") as r:
-            self.http_test()
-            self.bad_connection_test(r)
-
-    def test_http_low_level(self):
-        with run_example("http-low-level") as r:
             self.http_test()
             self.bad_connection_test(r)
 

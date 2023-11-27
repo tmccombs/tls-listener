@@ -39,8 +39,6 @@ jobs:
           - native-tls
           - openssl
           - rt
-          - hyper-h1
-          - hyper-h2
           - rustls,native-tls,openssl
           - tokio-net,rt,rustls
           - tokio-net,native-tls

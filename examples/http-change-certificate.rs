@@ -1,9 +1,11 @@
-use hyper::server::conn::{AddrIncoming, Http};
+use hyper::server::conn::http1;
 use hyper::service::service_fn;
-use hyper::{Body, Request, Response};
+use hyper::{body::Body, Request, Response};
+use hyper_util::rt::tokio::TokioIo;
 use std::convert::Infallible;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use tokio::net::TcpListener;
 
 mod tls_config;
 use tls_config::{tls_acceptor, tls_acceptor2, Acceptor};
@@ -16,16 +18,16 @@ use tokio::sync::mpsc;
 /// `curl https://127.0.0.1:3000 -k`
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
-    let addr = ([127, 0, 0, 1], 3000).into();
+    let addr: std::net::SocketAddr = ([127, 0, 0, 1], 3000).into();
     let counter = Arc::new(AtomicU64::new(0));
 
     let mut listener = tls_listener::builder(tls_acceptor())
         .max_handshakes(10)
-        .listen(AddrIncoming::bind(&addr).unwrap());
+        .listen(TcpListener::bind(addr).await.expect("Failed to bind port"));
 
     let (tx, mut rx) = mpsc::channel::<Acceptor>(1);
 
-    let http = Http::new();
+    let http = http1::Builder::new();
     loop {
         tokio::select! {
             conn = listener.accept() => {
@@ -36,7 +38,7 @@ async fn main() {
                         let counter = counter.clone();
                         tokio::spawn(async move {
                             let svc = service_fn(move |request| handle_request(tx.clone(), counter.clone(), request));
-                            if let Err(err) = http.serve_connection(conn, svc).await {
+                            if let Err(err) = http.serve_connection(TokioIo::new(conn), svc).await {
                                 eprintln!("Application error (client address: {remote_addr}): {err}");
                             }
                         });
@@ -63,8 +65,8 @@ async fn main() {
 async fn handle_request(
     change_certificate: mpsc::Sender<Acceptor>,
     counter: Arc<AtomicU64>,
-    _request: Request<Body>,
-) -> Result<Response<Body>, Infallible> {
+    _request: Request<impl Body>,
+) -> Result<Response<String>, Infallible> {
     let counter = counter.fetch_add(1, Ordering::Relaxed) + 1;
     let new_cert = if counter % 2 == 0 {
         tls_acceptor()
@@ -72,5 +74,5 @@ async fn handle_request(
         tls_acceptor2()
     };
     change_certificate.send(new_cert).await.ok();
-    Ok(Response::new(Body::from("Changing certificate...")))
+    Ok(Response::new("Changing certificate...".into()))
 }

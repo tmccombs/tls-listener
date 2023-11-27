@@ -1,29 +1,46 @@
-use hyper::server::conn::AddrIncoming;
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Response, Server};
+use hyper::server::conn::http1;
+use hyper::service::service_fn;
+use hyper::{Request, Response};
+use hyper_util::rt::tokio::TokioIo;
 use std::convert::Infallible;
 use tls_listener::TlsListener;
+use tokio::net::TcpListener;
 
 mod tls_config;
 use tls_config::tls_acceptor;
 
+async fn hello(_: Request<impl hyper::body::Body>) -> Result<Response<String>, Infallible> {
+    Ok(Response::new("Hello, World!".into()))
+}
+
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let addr = ([127, 0, 0, 1], 3000).into();
+    let addr: std::net::SocketAddr = ([127, 0, 0, 1], 3000).into();
 
-    let new_svc = make_service_fn(|_| async {
-        Ok::<_, Infallible>(service_fn(|_| async {
-            Ok::<_, Infallible>(Response::new(Body::from("Hello, World!")))
-        }))
-    });
+    let mut listener = TlsListener::new(tls_acceptor(), TcpListener::bind(addr).await?);
 
-    // WARNING: invalid data in the request will cause the Server to shut down.
-    // This could be handled by adding a filter to the stream to filter out
-    // unwanted errors (and possibly log them), then use `hyper::server::accept::from_stream`,
-    // or by doing something similar to the http-low-level.rs example.
-    let incoming = TlsListener::new(tls_acceptor(), AddrIncoming::bind(&addr)?);
+    // We start a loop to continuously accept incoming connections
+    loop {
+        match listener.accept().await.unwrap() {
+            Ok((stream, _)) => {
+                let io = TokioIo::new(stream);
 
-    let server = Server::builder(incoming).serve(new_svc);
-    server.await?;
-    Ok(())
+                tokio::task::spawn(async move {
+                    if let Err(err) = http1::Builder::new()
+                        .serve_connection(io, service_fn(hello))
+                        .await
+                    {
+                        println!("Error serving connection: {:?}", err);
+                    }
+                });
+            }
+            Err(err) => {
+                if let Some(remote_addr) = err.peer_addr() {
+                    eprint!("[client {remote_addr}] ");
+                }
+
+                eprintln!("Error accepting connection: {}", err);
+            }
+        }
+    }
 }

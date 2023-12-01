@@ -15,10 +15,10 @@ impl AsyncAccept for TcpListener {
     fn poll_accept(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<(Self::Connection, Self::Address), Self::Error>>> {
+    ) -> Poll<Result<(Self::Connection, Self::Address), Self::Error>> {
         match (*self).poll_accept(cx) {
-            Poll::Ready(Ok(conn)) => Poll::Ready(Some(Ok(conn))),
-            Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
+            Poll::Ready(Ok(conn)) => Poll::Ready(Ok(conn)),
+            Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
             Poll::Pending => Poll::Pending,
         }
     }
@@ -34,10 +34,10 @@ impl AsyncAccept for UnixListener {
     fn poll_accept(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<(Self::Connection, Self::Address), Self::Error>>> {
+    ) -> Poll<Result<(Self::Connection, Self::Address), Self::Error>> {
         match (*self).poll_accept(cx) {
-            Poll::Ready(Ok(conn)) => Poll::Ready(Some(Ok(conn))),
-            Poll::Ready(Err(e)) => Poll::Ready(Some(Err(e))),
+            Poll::Ready(Ok(conn)) => Poll::Ready(Ok(conn)),
+            Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
             Poll::Pending => Poll::Pending,
         }
     }

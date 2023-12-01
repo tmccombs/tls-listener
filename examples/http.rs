@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // We start a loop to continuously accept incoming connections
     loop {
-        match listener.accept().await.unwrap() {
+        match listener.accept().await {
             Ok((stream, _)) => {
                 let io = TokioIo::new(stream);
 

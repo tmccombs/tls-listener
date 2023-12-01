@@ -7,6 +7,7 @@ use helper::*;
 use helper::{assert_ascii_eq, assert_err};
 use tokio::io::{AsyncWriteExt, DuplexStream};
 use tokio::spawn;
+use tokio::sync::oneshot;
 
 use futures_util::StreamExt;
 
@@ -46,7 +47,7 @@ async fn stream_error() {
     connecter
         .send_error(Error::new(ErrorKind::ConnectionReset, "test"))
         .await;
-    assert_err!(listener.accept().await.unwrap(), ListenerError(_));
+    assert_err!(listener.accept().await, ListenerError(_));
 }
 
 #[tokio::test]
@@ -67,7 +68,7 @@ async fn tls_error() {
     let mut listener = TlsListener::new(ErrTls, accept);
 
     assert_err!(
-        listener.accept().await.unwrap(),
+        listener.accept().await,
         TlsAcceptError {
             peer_addr: MockAddress(42),
             ..
@@ -75,30 +76,12 @@ async fn tls_error() {
     );
 }
 
-#[tokio::test]
-async fn accept_ended() {
-    let (connector, mut listener) = setup();
-
-    spawn(async move {
-        assert_ascii_eq!(connector.send_data(b"hello").await.unwrap(), b"abc");
-    });
-
-    let res = listener.accept().await;
-    if let Some(Ok((mut stream, MockAddress(stream_id)))) = res {
-        assert_eq!(stream_id, 42);
-        stream.write_all(b"ABC").await.unwrap();
-    } else {
-        panic!("Failed to accept stream. Got {:?}", res);
-    }
-
-    assert!(listener.accept().await.is_none());
-}
-
 static LONG_TEXT: &'static [u8] = include_bytes!("long_text.txt");
 
 #[tokio::test]
 async fn echo() {
-    let (connector, listener) = setup_echo();
+    let (ender, ended) = oneshot::channel();
+    let (connector, listener) = setup_echo(ended);
 
     async fn check_message(c: &MockConnect, msg: &[u8]) -> () {
         let resp = c.send_data(msg).await;
@@ -117,7 +100,7 @@ async fn echo() {
         check_message(c, LONG_TEXT),
         check_message(c, LONG_TEXT),
     );
-    drop(connector);
+    ender.send(()).unwrap();
 
     if let Err(e) = listener.await {
         std::panic::resume_unwind(e.into_panic());
@@ -135,6 +118,6 @@ async fn addr() {
     });
 
     for i in 42..44 {
-        assert_eq!(listener.accept().await.unwrap().unwrap().1, MockAddress(i));
+        assert_eq!(listener.accept().await.unwrap().1, MockAddress(i));
     }
 }

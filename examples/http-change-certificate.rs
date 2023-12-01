@@ -31,7 +31,7 @@ async fn main() {
     loop {
         tokio::select! {
             conn = listener.accept() => {
-                match conn.expect("Tls listener stream should be infinite") {
+                match conn {
                     Ok((conn, remote_addr)) => {
                         let http = http.clone();
                         let tx = tx.clone();

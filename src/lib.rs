@@ -18,7 +18,7 @@ use pin_project_lite::pin_project;
 #[cfg(feature = "rt")]
 pub use spawning_handshake::SpawningHandshakes;
 use std::fmt::Debug;
-use std::future::Future;
+use std::future::{poll_fn, Future};
 use std::pin::Pin;
 use std::task::{ready, Context, Poll};
 use std::time::Duration;
@@ -77,24 +77,7 @@ pub trait AsyncAccept {
     fn poll_accept(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<(Self::Connection, Self::Address), Self::Error>>>;
-
-    /// Return a new `AsyncAccept` that stops accepting connections after
-    /// `ender` completes.
-    ///
-    /// Useful for graceful shutdown.
-    ///
-    /// See [examples/echo.rs](https://github.com/tmccombs/tls-listener/blob/main/examples/echo.rs)
-    /// for example of how to use.
-    fn until<F: Future>(self, ender: F) -> Until<Self, F>
-    where
-        Self: Sized,
-    {
-        Until {
-            acceptor: self,
-            ender,
-        }
-    }
+    ) -> Poll<Result<(Self::Connection, Self::Address), Self::Error>>;
 }
 
 pin_project! {
@@ -192,14 +175,49 @@ where
     A: AsyncAccept,
     T: AsyncTls<A::Connection>,
 {
+    /// Poll accepting a connection.
+    ///
+    /// This will return ready once the TLS handshake has completed on an incoming
+    /// connection and return the connection and the source address.
+    pub fn poll_accept(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<<Self as Stream>::Item> {
+        let mut this = self.project();
+
+        while this.waiting.len() < *this.max_handshakes {
+            match this.listener.as_mut().poll_accept(cx) {
+                Poll::Pending => break,
+                Poll::Ready(Ok((conn, addr))) => {
+                    this.waiting.push(Waiting {
+                        inner: timeout(*this.timeout, this.tls.accept(conn)),
+                        peer_addr: Some(addr),
+                    });
+                }
+                Poll::Ready(Err(e)) => {
+                    return Poll::Ready(Err(Error::ListenerError(e)));
+                }
+            }
+        }
+
+        match this.waiting.poll_next_unpin(cx) {
+            Poll::Ready(Some(result)) => Poll::Ready(result),
+            // If we don't have anything waiting yet,
+            // then we are still pending,
+            Poll::Ready(None) | Poll::Pending => Poll::Pending,
+        }
+    }
+
     /// Accept the next connection
     ///
-    /// This is essentially an alias to `self.next()` with a more domain-appropriate name.
-    pub fn accept(&mut self) -> impl Future<Output = Option<<Self as Stream>::Item>> + '_
+    /// This is similar to `self.next()`, but doesn't return an `Option` because
+    /// there isn't an end condition on accepting connections,
+    /// and has a more domain-appropriate name.
+    ///
+    /// The future returned is "cancellation safe".
+    pub fn accept(&mut self) -> impl Future<Output = <Self as Stream>::Item> + '_
     where
         Self: Unpin,
     {
-        self.next()
+        let mut pinned = Pin::new(self);
+        poll_fn(move |cx| pinned.as_mut().poll_accept(cx))
     }
 
     /// Replaces the Tls Acceptor configuration, which will be used for new connections.
@@ -237,31 +255,7 @@ where
     type Item = Result<(T::Stream, A::Address), TlsListenerError<A, T>>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut this = self.project();
-
-        while this.waiting.len() < *this.max_handshakes {
-            match this.listener.as_mut().poll_accept(cx) {
-                Poll::Pending => break,
-                Poll::Ready(Some(Ok((conn, addr)))) => {
-                    this.waiting.push(Waiting {
-                        inner: timeout(*this.timeout, this.tls.accept(conn)),
-                        peer_addr: Some(addr),
-                    });
-                }
-                Poll::Ready(Some(Err(e))) => {
-                    return Poll::Ready(Some(Err(Error::ListenerError(e))));
-                }
-                Poll::Ready(None) => return Poll::Ready(None),
-            }
-        }
-
-        match this.waiting.poll_next_unpin(cx) {
-            // If we don't have anything waiting yet,
-            // then we are still pending,
-            Poll::Ready(None) => Poll::Pending,
-            // Otherwise the result is already what we want
-            result => result,
-        }
+        self.poll_accept(cx).map(Some)
     }
 }
 
@@ -429,34 +423,6 @@ where
             })),
             // The handshake timed out
             Err(_) => Poll::Ready(Err(Error::HandshakeTimeout { peer_addr: addr })),
-        }
-    }
-}
-
-pin_project! {
-    /// See [`AsyncAccept::until`]
-    pub struct Until<A, E> {
-        #[pin]
-        acceptor: A,
-        #[pin]
-        ender: E,
-    }
-}
-
-impl<A: AsyncAccept, E: Future> AsyncAccept for Until<A, E> {
-    type Connection = A::Connection;
-    type Error = A::Error;
-    type Address = A::Address;
-
-    fn poll_accept(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<(Self::Connection, Self::Address), Self::Error>>> {
-        let this = self.project();
-
-        match this.ender.poll(cx) {
-            Poll::Pending => this.acceptor.poll_accept(cx),
-            Poll::Ready(_) => Poll::Ready(None),
         }
     }
 }

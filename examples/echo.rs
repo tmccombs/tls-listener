@@ -1,6 +1,6 @@
 use futures_util::StreamExt;
 use std::net::SocketAddr;
-use tls_listener::{AsyncAccept, TlsListener};
+use tls_listener::TlsListener;
 use tokio::io::{copy, split};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::signal::ctrl_c;
@@ -36,9 +36,10 @@ async fn handle_stream(stream: TlsStream<TcpStream>, _remote_addr: SocketAddr) {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr: SocketAddr = ([127, 0, 0, 1], 3000).into();
 
-    let listener = TcpListener::bind(&addr).await?.until(ctrl_c());
+    let listener = TcpListener::bind(&addr).await?;
 
     TlsListener::new(tls_acceptor(), listener)
+        .take_until(ctrl_c())
         .for_each_concurrent(None, |s| async {
             match s {
                 Ok((stream, remote_addr)) => {

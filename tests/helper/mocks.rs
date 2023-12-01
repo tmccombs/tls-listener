@@ -70,8 +70,8 @@ impl AsyncAccept for MockAccept {
     type Error = io::Error;
     type Address = MockAddress;
 
-    fn poll_accept(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<ConnResult>> {
-        Pin::into_inner(self).chan.poll_recv(cx)
+    fn poll_accept(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<ConnResult> {
+        Pin::into_inner(self).chan.poll_recv(cx).map(|c| c.unwrap())
     }
 }
 

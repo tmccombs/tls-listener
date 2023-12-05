@@ -9,10 +9,9 @@ This library is intended to automatically initiate a TLS connection
 as for each new connection in a source of new streams (such as a listening
 TCP or unix domain socket).
 
-In particular, the `TlsListener` can be used as the `incoming` argument to `hyper::server::Server::builder` (requires
-one of the `hyper-h1` or `hyper-h2` features).
+It can be used to easily create a `Stream` of TLS connections from a listening socket.
 
 See examples for examples of usage.
 
-You must enable either one of the `rustls`, `native-tls`, or `openssl` features depending on which implementation you 
+You must enable either one of the `rustls`, `native-tls`, or `openssl` features depending on which implementation you
 would like to use.

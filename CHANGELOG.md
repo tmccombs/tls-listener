@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2023-12-05
+
+### Features
+
+- [**breaking**] Remove until & remove option from accept
+  * BREAKING CHANGE: remove `until` from AsyncAccept trait. Use
+  `StreamExt.take_until` on the TlsListener instead.
+  * BREAKING CHANGE: `accept` fn on AsyncAccept trait no longer returns an
+  Option
+  * BREAKING CHANGE: `accept` fn on TlsListener no longer returns an Option
+
+
+### Upgrade
+
+- [**breaking**] Update to hyper 1.0
+  * BREAKING CHANGE: Removed hyper-h1 and hyper-h2 features
+
+
 ## [0.8.0] - 2023-10-19
 
 This is a backwards incompatible release. The main change is that accepting a new connection now returns a tuple of the new connection, and the peer

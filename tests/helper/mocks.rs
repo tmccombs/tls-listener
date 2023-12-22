@@ -116,7 +116,7 @@ impl AsyncWrite for MockTlsStream {
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         let data = buf.to_ascii_lowercase();
-        self.inner().poll_write(cx, &*data)
+        self.inner().poll_write(cx, &data)
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {

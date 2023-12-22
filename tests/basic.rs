@@ -76,14 +76,14 @@ async fn tls_error() {
     );
 }
 
-static LONG_TEXT: &'static [u8] = include_bytes!("long_text.txt");
+static LONG_TEXT: &[u8] = include_bytes!("long_text.txt");
 
 #[tokio::test]
 async fn echo() {
     let (ender, ended) = oneshot::channel();
     let (connector, listener) = setup_echo(ended);
 
-    async fn check_message(c: &MockConnect, msg: &[u8]) -> () {
+    async fn check_message(c: &MockConnect, msg: &[u8]) {
         let resp = c.send_data(msg).await;
         assert_ascii_eq!(resp.unwrap(), msg.to_ascii_lowercase());
     }

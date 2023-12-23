@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.1] - 2023-12-23
+
+### Miscellaneous Tasks
+
+- Update tokio-rustls
+
+
 ## [0.9.0] - 2023-12-05
 
 ### Features

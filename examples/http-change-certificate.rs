@@ -3,6 +3,7 @@ use hyper::service::service_fn;
 use hyper::{body::Body, Request, Response};
 use hyper_util::rt::tokio::TokioIo;
 use std::convert::Infallible;
+use std::num::NonZeroUsize;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -22,7 +23,7 @@ async fn main() {
     let counter = Arc::new(AtomicU64::new(0));
 
     let mut listener = tls_listener::builder(tls_acceptor())
-        .max_handshakes(10)
+        .accept_batch_size(NonZeroUsize::new(10).unwrap())
         .listen(TcpListener::bind(addr).await.expect("Failed to bind port"));
 
     let (tx, mut rx) = mpsc::channel::<Acceptor>(1);

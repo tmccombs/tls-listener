@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.0] - 2024-03-15
+
+### Security Advisory
+
+Versions prior to this using the default configuration are vulnerable to a Slowloris attack.
+
+This version mitigates the vulnerability.
+
+Previous versions can mitigate the vulnerability by increasing the value passed to `Builder::max_handshakes` to a large
+number (such as `usize::MAX`). Decreasing the `handshake_timeout` can also help, although it is still strongly recommended
+to increase the `max_handshakes` more than the current default.
+
+### Changes
+
+- [**breaking**] Change `poll_accept` not to have a limit on the number of pending handshakes in the queue,
+  so that connections that are not making progress towards completing the handshake will not block other
+  connections from being accepted. This replaces `Builder::max_handshakes` with `Builder::accept_batch_size`.
+
 ## [0.9.1] - 2023-12-23
 
 ### Miscellaneous Tasks

@@ -19,6 +19,7 @@ use pin_project_lite::pin_project;
 pub use spawning_handshake::SpawningHandshakes;
 use std::fmt::Debug;
 use std::future::{poll_fn, Future};
+use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::task::{ready, Context, Poll};
 use std::time::Duration;
@@ -38,8 +39,8 @@ mod spawning_handshake;
 #[cfg(feature = "tokio-net")]
 mod net;
 
-/// Default number of concurrent handshakes
-pub const DEFAULT_MAX_HANDSHAKES: usize = 64;
+/// Default number of connections to accept in a batch before trying to
+pub const DEFAULT_ACCEPT_BATCH_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(64) };
 /// Default timeout for the TLS handshake.
 pub const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -112,7 +113,7 @@ pin_project! {
         listener: A,
         tls: T,
         waiting: FuturesUnordered<Waiting<A, T>>,
-        max_handshakes: usize,
+        accept_batch_size: NonZeroUsize,
         timeout: Duration,
     }
 }
@@ -121,7 +122,7 @@ pin_project! {
 #[derive(Clone)]
 pub struct Builder<T> {
     tls: T,
-    max_handshakes: usize,
+    accept_batch_size: NonZeroUsize,
     handshake_timeout: Duration,
 }
 
@@ -182,26 +183,36 @@ where
     pub fn poll_accept(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<<Self as Stream>::Item> {
         let mut this = self.project();
 
-        while this.waiting.len() < *this.max_handshakes {
-            match this.listener.as_mut().poll_accept(cx) {
-                Poll::Pending => break,
-                Poll::Ready(Ok((conn, addr))) => {
-                    this.waiting.push(Waiting {
-                        inner: timeout(*this.timeout, this.tls.accept(conn)),
-                        peer_addr: Some(addr),
-                    });
-                }
-                Poll::Ready(Err(e)) => {
-                    return Poll::Ready(Err(Error::ListenerError(e)));
+        loop {
+            let mut empty_listener = false;
+            for _ in 0..this.accept_batch_size.get() {
+                match this.listener.as_mut().poll_accept(cx) {
+                    Poll::Pending => {
+                        empty_listener = true;
+                        break;
+                    }
+                    Poll::Ready(Ok((conn, addr))) => {
+                        this.waiting.push(Waiting {
+                            inner: timeout(*this.timeout, this.tls.accept(conn)),
+                            peer_addr: Some(addr),
+                        });
+                    }
+                    Poll::Ready(Err(e)) => {
+                        return Poll::Ready(Err(Error::ListenerError(e)));
+                    }
                 }
             }
-        }
 
-        match this.waiting.poll_next_unpin(cx) {
-            Poll::Ready(Some(result)) => Poll::Ready(result),
-            // If we don't have anything waiting yet,
-            // then we are still pending,
-            Poll::Ready(None) | Poll::Pending => Poll::Pending,
+            match this.waiting.poll_next_unpin(cx) {
+                Poll::Ready(Some(result)) => return Poll::Ready(result),
+                // If we don't have anything waiting yet,
+                // then we are still pending,
+                Poll::Ready(None) | Poll::Pending => {
+                    if empty_listener {
+                        return Poll::Pending;
+                    }
+                }
+            }
         }
     }
 
@@ -318,15 +329,19 @@ where
 }
 
 impl<T> Builder<T> {
-    /// Set the maximum number of concurrent handshakes.
+    /// Set the size of batches of incoming connections to accept at once
     ///
-    /// At most `max` handshakes will be concurrently processed. If that limit is
-    /// reached, the `TlsListener` will stop polling the underlying listener until a
-    /// handshake completes and the encrypted stream has been returned.
+    /// When polling for a new connection, the `TlsListener` will first check
+    /// for incomming connections on the listener that need to start a TLS handshake.
+    /// This specifies the maximum number of connections it will accept before seeing if any
+    /// TLS connections are ready.
     ///
-    /// Defaults to `DEFAULT_MAX_HANDSHAKES`.
-    pub fn max_handshakes(&mut self, max: usize) -> &mut Self {
-        self.max_handshakes = max;
+    /// Having a limit for this ensures that ready TLS conections aren't starved if there are a
+    /// large number of incoming connections.
+    ///
+    /// Defaults to `DEFAULT_ACCEPT_BATCH_SIZE`.
+    pub fn accept_batch_size(&mut self, size: NonZeroUsize) -> &mut Self {
+        self.accept_batch_size = size;
         self
     }
 
@@ -334,6 +349,10 @@ impl<T> Builder<T> {
     ///
     /// If a timeout takes longer than `timeout`, then the handshake will be
     /// aborted and the underlying connection will be dropped.
+    ///
+    /// The default is fairly conservative, to avoid dropping connections. It is
+    /// recommended that you adjust this to meet the specific needs of your use case
+    /// in production deployments.
     ///
     /// Defaults to `DEFAULT_HANDSHAKE_TIMEOUT`.
     pub fn handshake_timeout(&mut self, timeout: Duration) -> &mut Self {
@@ -354,7 +373,7 @@ impl<T> Builder<T> {
             listener,
             tls: self.tls.clone(),
             waiting: FuturesUnordered::new(),
-            max_handshakes: self.max_handshakes,
+            accept_batch_size: self.accept_batch_size,
             timeout: self.handshake_timeout,
         }
     }
@@ -382,7 +401,7 @@ impl<LE: std::error::Error, TE: std::error::Error, A> Error<LE, TE, A> {
 pub fn builder<T>(tls: T) -> Builder<T> {
     Builder {
         tls,
-        max_handshakes: DEFAULT_MAX_HANDSHAKES,
+        accept_batch_size: DEFAULT_ACCEPT_BATCH_SIZE,
         handshake_timeout: DEFAULT_HANDSHAKE_TIMEOUT,
     }
 }

@@ -9,10 +9,11 @@ license = "Apache-2.0"
 
 [features]
 default = ["tokio-net"]
-rustls = ["tokio-rustls"]
-rustls-aws-lc = ["rustls", "tokio-rustls/aws-lc-rs"]
+rustls-core = ["tokio-rustls"]
+rustls-aws-lc = ["rustls-core", "tokio-rustls/aws-lc-rs"]
 rustls-fips = ["rustls-aws-lc", "tokio-rustls/fips"]
-rustls-ring = ["rustls", "tokio-rustls/ring"]
+rustls-ring = ["rustls-core", "tokio-rustls/ring"]
+rustls = ["rustls-aws-lc", "tokio-rustls/default"]
 native-tls = ["tokio-native-tls"]
 openssl = ["tokio-openssl", "openssl_impl"]
 rt = ["tokio/rt"]
@@ -63,5 +64,14 @@ name = "http-change-certificate"
 path = "examples/http-change-certificate.rs"
 
 [package.metadata.docs.rs]
-features = ["rustls", "native-tls", "openssl", "rt"]
+features = [
+    "rustls-core",
+    "rustls",
+    "rustls-aws-lc",
+    "rustls-fips",
+    "rustls-ring",
+    "native-tls",
+    "openssl",
+    "rt"
+]
 rustdoc-args = ["--cfg", "docsrs"]

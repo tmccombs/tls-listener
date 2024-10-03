@@ -1,4 +1,4 @@
-#[cfg(feature = "rustls")]
+#[cfg(feature = "rustls-core")]
 mod config {
     use std::sync::Arc;
     use tokio_rustls::rustls::{
@@ -39,7 +39,7 @@ mod config {
 
 #[cfg(all(
     feature = "native-tls",
-    not(any(feature = "rustls", feature = "openssl"))
+    not(any(feature = "rustls-core", feature = "openssl"))
 ))]
 mod config {
     use tokio_native_tls::native_tls::{Identity, TlsAcceptor};
@@ -65,7 +65,7 @@ mod config {
 
 #[cfg(all(
     feature = "openssl",
-    not(any(feature = "rustls", feature = "native-tls"))
+    not(any(feature = "rustls-core", feature = "native-tls"))
 ))]
 mod config {
     use openssl_impl::ssl::{SslContext, SslFiletype, SslMethod};

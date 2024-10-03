@@ -7,15 +7,15 @@ use tokio::signal::ctrl_c;
 
 #[cfg(all(
     feature = "native-tls",
-    not(any(feature = "rustls", feature = "openssl"))
+    not(any(feature = "rustls-core", feature = "openssl"))
 ))]
 use tokio_native_tls::TlsStream;
 #[cfg(all(
     feature = "openssl",
-    not(any(feature = "rustls", feature = "native-tls"))
+    not(any(feature = "rustls-core", feature = "native-tls"))
 ))]
 use tokio_openssl::SslStream as TlsStream;
-#[cfg(feature = "rustls")]
+#[cfg(feature = "rustls-core")]
 use tokio_rustls::server::TlsStream;
 
 mod tls_config;

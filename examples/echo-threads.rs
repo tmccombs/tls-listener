@@ -4,9 +4,9 @@ use tls_listener::{SpawningHandshakes, TlsListener};
 use tokio::io::{copy, split};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::signal::ctrl_c;
-#[cfg(all(feature = "native-tls", not(feature = "rustls")))]
+#[cfg(all(feature = "native-tls", not(feature = "rustls-core")))]
 use tokio_native_tls::TlsStream;
-#[cfg(feature = "rustls")]
+#[cfg(feature = "rustls-core")]
 use tokio_rustls::server::TlsStream;
 
 mod tls_config;

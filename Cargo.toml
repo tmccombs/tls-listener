@@ -10,6 +10,9 @@ license = "Apache-2.0"
 [features]
 default = ["tokio-net"]
 rustls = ["tokio-rustls"]
+rustls-aws-lc = ["rustls", "tokio-rustls/aws-lc-rs"]
+rustls-fips = ["rustls-aws-lc", "tokio-rustls/fips"]
+rustls-ring = ["rustls", "tokio-rustls/ring"]
 native-tls = ["tokio-native-tls"]
 openssl = ["tokio-openssl", "openssl_impl"]
 rt = ["tokio/rt"]
@@ -22,7 +25,7 @@ pin-project-lite = "0.2.13"
 thiserror = "1.0.30"
 tokio = { version = "1.0", features = ["time"] }
 tokio-native-tls = { version = "0.3.0", optional = true }
-tokio-rustls = { version = ">=0.25.0,<0.27", optional = true }
+tokio-rustls = { version = ">=0.25.0,<0.27", default-features = false, optional = true }
 tokio-openssl = { version = "0.6.3", optional = true }
 openssl_impl = { package = "openssl", version = "0.10.32", optional = true }
 

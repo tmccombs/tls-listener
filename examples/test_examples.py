@@ -56,7 +56,7 @@ def build_examples():
             "build",
             "--examples",
             "--features",
-            "rustls,rt,tokio/rt-multi-thread",
+            "rustls-aws-lc,rt,tokio/rt-multi-thread",
         ]
     )
     proc.check_returncode()

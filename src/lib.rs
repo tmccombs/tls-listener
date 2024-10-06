@@ -30,7 +30,7 @@ use tokio::time::{timeout, Timeout};
 pub use tokio_native_tls as native_tls;
 #[cfg(feature = "openssl")]
 pub use tokio_openssl as openssl;
-#[cfg(feature = "rustls")]
+#[cfg(feature = "rustls-core")]
 pub use tokio_rustls as rustls;
 
 #[cfg(feature = "rt")]
@@ -270,8 +270,8 @@ where
     }
 }
 
-#[cfg(feature = "rustls")]
-#[cfg_attr(docsrs, doc(cfg(feature = "rustls")))]
+#[cfg(feature = "rustls-core")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rustls-core")))]
 impl<C: AsyncRead + AsyncWrite + Unpin> AsyncTls<C> for tokio_rustls::TlsAcceptor {
     type Stream = tokio_rustls::server::TlsStream<C>;
     type Error = std::io::Error;

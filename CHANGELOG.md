@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.2]
+
+### Changes
+
+- Add rustls-core feature flag, to allow depending on rustls without requiring the aws-lc backend.
+  For backwards compatibility, the "rustls" feature continues to depend on aws-lc, but in a
+  future version this will likely change to only require  the core rustls crate with no features by default.
+
+## [0.10.1]
+
+### Changes
+
+- Allow using tokio-rustls version 0.26
+
 ## [0.10.0] - 2024-03-15
 
 ### Security Advisory

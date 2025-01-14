@@ -66,10 +66,6 @@ path = "examples/http-change-certificate.rs"
 [package.metadata.docs.rs]
 features = [
     "rustls-core",
-    "rustls",
-    "rustls-aws-lc",
-    "rustls-fips",
-    "rustls-ring",
     "native-tls",
     "openssl",
     "rt"

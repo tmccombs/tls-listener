@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.10.3]
+
+### Changes
+
+- Make docs.rs builds more reliable
+- Added Github action to automate publishing to crates.io
+
 ## [0.10.2]
 
 ### Changes

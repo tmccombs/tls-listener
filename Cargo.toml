@@ -4,7 +4,7 @@ description = "wrap incoming Stream of connections in TLS"
 version = "0.11.0"
 authors = ["Thayne McCombs <astrothayne@gmail.com>"]
 repository = "https://github.com/tmccombs/tls-listener"
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
 
 [features]

@@ -6,6 +6,14 @@ use tokio::net::{TcpListener, TcpStream};
 mod tls_config;
 use tls_config::tls_acceptor;
 
+/// An example of running an axum server with `TlsListener`.
+///
+/// One can also bypass `axum::serve` and use the `Router` with Hyper's `serve_connection` API
+/// directly. The main advantages of using `axum::serve` are that
+/// - graceful shutdown is made easy with axum's `.with_graceful_shutdown` API, and
+/// - the Hyper server is configured by axum itself, allowing options specific to axum to be set
+///   (for example, axum currently enables the `CONNECT` protocol in order to support HTTP/2
+///   websockets).
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
     let app = Router::new().route("/", get(|| async { "Hello, World!" }));
@@ -31,6 +39,8 @@ impl axum::serve::Listener for Listener {
     type Addr = SocketAddr;
     async fn accept(&mut self) -> (Self::Io, Self::Addr) {
         loop {
+            // To change the TLS certificate dynamically, you could `select!` on this call with a
+            // channel receiver, and call `self.inner.replace_acceptor` in the other branch.
             match self.inner.accept().await {
                 Ok(tuple) => break tuple,
                 Err(tls_listener::Error::ListenerError(e)) if !is_connection_error(&e) => {

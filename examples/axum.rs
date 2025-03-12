@@ -20,19 +20,13 @@ async fn main() {
 
     let local_addr = "0.0.0.0:3000".parse::<SocketAddr>().unwrap();
     let tcp_listener = tokio::net::TcpListener::bind(local_addr).await.unwrap();
-    let listener = Listener {
-        inner: TlsListener::new(tls_acceptor(), tcp_listener),
-        local_addr,
-    };
+    let listener = Listener(TlsListener::new(tls_acceptor(), tcp_listener));
 
     axum::serve(listener, app).await.unwrap();
 }
 
 // We use a wrapper type to bridge axum's `Listener` trait to our `TlsListener` type.
-struct Listener {
-    inner: TlsListener<TcpListener, tls_config::Acceptor>,
-    local_addr: SocketAddr,
-}
+struct Listener(TlsListener<TcpListener, tls_config::Acceptor>);
 
 impl axum::serve::Listener for Listener {
     type Io = tls_config::Stream<TcpStream>;
@@ -41,7 +35,7 @@ impl axum::serve::Listener for Listener {
         loop {
             // To change the TLS certificate dynamically, you could `select!` on this call with a
             // channel receiver, and call `self.inner.replace_acceptor` in the other branch.
-            match self.inner.accept().await {
+            match self.0.accept().await {
                 Ok(tuple) => break tuple,
                 Err(tls_listener::Error::ListenerError(e)) if !is_connection_error(&e) => {
                     // See https://github.com/tokio-rs/axum/blob/da3539cb0e5eed381361b2e688a776da77c52cd6/axum/src/serve/listener.rs#L145-L157
@@ -53,7 +47,7 @@ impl axum::serve::Listener for Listener {
         }
     }
     fn local_addr(&self) -> io::Result<Self::Addr> {
-        Ok(self.local_addr)
+        self.0.listener().local_addr()
     }
 }
 

@@ -133,3 +133,7 @@ class TestExamples(unittest.TestCase):
     def test_http_plain(self):
         with run_example("http"):
             self.http_test()
+
+    def test_axum(self):
+        with run_example("axum"):
+            self.http_test()

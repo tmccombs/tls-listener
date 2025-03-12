@@ -15,6 +15,9 @@ mod config {
 
     pub type Acceptor = tokio_rustls::TlsAcceptor;
 
+    #[allow(dead_code)]
+    pub type Stream<T> = tokio_rustls::server::TlsStream<T>;
+
     fn tls_acceptor_impl(key_der: &[u8], cert_der: &[u8]) -> Acceptor {
         let key = PrivateKeyDer::Pkcs1(key_der.to_owned().into());
         let cert = CertificateDer::from(cert_der).into_owned();
@@ -49,6 +52,9 @@ mod config {
 
     pub type Acceptor = tokio_native_tls::TlsAcceptor;
 
+    #[allow(dead_code)]
+    pub type Stream<T> = tokio_native_tls::TlsStream<T>;
+
     fn tls_acceptor_impl(pfx: &[u8]) -> Acceptor {
         let identity = Identity::from_pkcs12(pfx, "").unwrap();
         TlsAcceptor::builder(identity).build().unwrap().into()
@@ -72,6 +78,9 @@ mod config {
     use std::path::Path;
 
     pub type Acceptor = openssl_impl::ssl::SslContext;
+
+    #[allow(dead_code)]
+    pub type Stream<T> = tokio_openssl::SslStream<T>;
 
     fn tls_acceptor_impl<P: AsRef<Path>>(cert_file: P, key_file: P) -> Acceptor {
         let mut builder = SslContext::builder(SslMethod::tls_server()).unwrap();

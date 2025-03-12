@@ -259,6 +259,14 @@ where
     pub fn connections(self) -> impl Stream<Item = Result<T::Stream, TlsListenerError<A, T>>> {
         self.map_ok(|(conn, _addr)| conn)
     }
+
+    /// Get a reference to the underlying connection listener
+    ///
+    /// Can be useful to get metadata about the listener, such as the
+    /// local address.
+    pub fn listener(&self) -> &A {
+        &self.listener
+    }
 }
 
 impl<A, T> Stream for TlsListener<A, T>

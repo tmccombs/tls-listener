@@ -36,11 +36,13 @@ pub use tokio_openssl as openssl;
 #[cfg(feature = "rustls-core")]
 pub use tokio_rustls as rustls;
 
+mod accept;
+#[cfg(feature = "tokio-net")]
+mod net;
 #[cfg(feature = "rt")]
 mod spawning_handshake;
 
-#[cfg(feature = "tokio-net")]
-mod net;
+pub use accept::*;
 
 /// Default number of connections to accept in a batch before trying to
 pub const DEFAULT_ACCEPT_BATCH_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(64) };
@@ -60,28 +62,6 @@ pub trait AsyncTls<C: AsyncRead + AsyncWrite>: Clone {
 
     /// Accept a TLS connection on an underlying stream
     fn accept(&self, stream: C) -> Self::AcceptFuture;
-}
-
-/// Asynchronously accept connections.
-pub trait AsyncAccept {
-    /// The type of the connection that is accepted.
-    type Connection: AsyncRead + AsyncWrite;
-    /// The type of the remote address, such as [`std::net::SocketAddr`].
-    ///
-    /// If no remote address can be determined (such as for mock connections),
-    /// `()` or a similar dummy type can be used.
-    type Address: Debug;
-    /// The type of error that may be returned.
-    type Error: std::error::Error;
-
-    /// Poll to accept the next connection.
-    ///
-    /// On success return the new connection, and the address of the peer.
-    #[allow(clippy::type_complexity)]
-    fn poll_accept(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(Self::Connection, Self::Address), Self::Error>>;
 }
 
 pin_project! {

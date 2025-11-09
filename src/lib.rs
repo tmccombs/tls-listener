@@ -44,6 +44,9 @@ mod spawning_handshake;
 
 pub use accept::*;
 
+#[cfg(feature = "axum")]
+mod axum;
+
 /// Default number of connections to accept in a batch before trying to
 pub const DEFAULT_ACCEPT_BATCH_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(64) };
 /// Default timeout for the TLS handshake.
@@ -249,7 +252,10 @@ where
     }
 
     /// Get the local address of the underlying listener
-    pub fn local_addr(&self) -> Result<A::Address, A::Error> where A: AsyncListener {
+    pub fn local_addr(&self) -> Result<A::Address, A::Error>
+    where
+        A: AsyncListener,
+    {
         self.listener.local_addr()
     }
 }

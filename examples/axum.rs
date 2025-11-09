@@ -1,7 +1,7 @@
 use axum::{routing::get, Router};
-use std::{io, net::SocketAddr, time::Duration};
+use std::net::SocketAddr;
 use tls_listener::TlsListener;
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
 
 mod tls_config;
 use tls_config::tls_acceptor;
@@ -19,44 +19,8 @@ async fn main() {
     let app = Router::new().route("/", get(|| async { "Hello, World!" }));
 
     let local_addr = "0.0.0.0:3000".parse::<SocketAddr>().unwrap();
-    let tcp_listener = tokio::net::TcpListener::bind(local_addr).await.unwrap();
-    let listener = Listener(TlsListener::new(tls_acceptor(), tcp_listener));
+    let tcp_listener = TcpListener::bind(local_addr).await.unwrap();
+    let listener = TlsListener::new(tls_acceptor(), tcp_listener);
 
     axum::serve(listener, app).await.unwrap();
-}
-
-// We use a wrapper type to bridge axum's `Listener` trait to our `TlsListener` type.
-struct Listener(TlsListener<TcpListener, tls_config::Acceptor>);
-
-impl axum::serve::Listener for Listener {
-    type Io = tls_config::Stream<TcpStream>;
-    type Addr = SocketAddr;
-    async fn accept(&mut self) -> (Self::Io, Self::Addr) {
-        loop {
-            // To change the TLS certificate dynamically, you could `select!` on this call with a
-            // channel receiver, and call `self.inner.replace_acceptor` in the other branch.
-            match self.0.accept().await {
-                Ok(tuple) => break tuple,
-                Err(tls_listener::Error::ListenerError(e)) if !is_connection_error(&e) => {
-                    // See https://github.com/tokio-rs/axum/blob/da3539cb0e5eed381361b2e688a776da77c52cd6/axum/src/serve/listener.rs#L145-L157
-                    // for the rationale.
-                    tokio::time::sleep(Duration::from_secs(1)).await
-                }
-                Err(_) => continue,
-            }
-        }
-    }
-    fn local_addr(&self) -> io::Result<Self::Addr> {
-        self.0.local_addr()
-    }
-}
-
-// Taken from https://github.com/tokio-rs/axum/blob/da3539cb0e5eed381361b2e688a776da77c52cd6/axum/src/serve/listener.rs#L160-L167
-fn is_connection_error(e: &io::Error) -> bool {
-    matches!(
-        e.kind(),
-        io::ErrorKind::ConnectionRefused
-            | io::ErrorKind::ConnectionAborted
-            | io::ErrorKind::ConnectionReset
-    )
 }

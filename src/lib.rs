@@ -247,6 +247,11 @@ where
     pub fn listener(&self) -> &A {
         &self.listener
     }
+
+    /// Get the local address of the underlying listener
+    pub fn local_addr(&self) -> Result<A::Address, A::Error> where A: AsyncListener {
+        self.listener.local_addr()
+    }
 }
 
 impl<A, T> Stream for TlsListener<A, T>

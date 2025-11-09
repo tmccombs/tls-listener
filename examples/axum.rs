@@ -47,7 +47,7 @@ impl axum::serve::Listener for Listener {
         }
     }
     fn local_addr(&self) -> io::Result<Self::Addr> {
-        self.0.listener().local_addr()
+        self.0.local_addr()
     }
 }
 

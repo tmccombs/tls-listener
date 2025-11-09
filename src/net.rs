@@ -1,4 +1,4 @@
-use super::AsyncAccept;
+use super::{AsyncAccept, AsyncListener};
 use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -24,6 +24,14 @@ impl AsyncAccept for TcpListener {
     }
 }
 
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio-net")))]
+impl AsyncListener for TcpListener {
+    #[inline]
+    fn local_addr(&self) -> Result<Self::Address, Self::Error> {
+        TcpListener::local_addr(self)
+    }
+}
+
 #[cfg(unix)]
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio-net")))]
 impl AsyncAccept for UnixListener {
@@ -40,5 +48,13 @@ impl AsyncAccept for UnixListener {
             Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
             Poll::Pending => Poll::Pending,
         }
+    }
+}
+
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio-net")))]
+impl AsyncListener for UnixListener {
+    #[inline]
+    fn local_addr(&self) -> Result<Self::Address, Self::Error> {
+        UnixListener::local_addr(self)
     }
 }

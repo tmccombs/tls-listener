@@ -90,3 +90,9 @@ where
         current: first_future,
     }
 }
+
+///An AsyncListener that can also report its local address
+pub trait AsyncListener: AsyncAccept {
+    /// The local address of the listener, if available.
+    fn local_addr(&self) -> Result<Self::Address, Self::Error>;
+}

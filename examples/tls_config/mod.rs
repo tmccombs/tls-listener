@@ -2,8 +2,8 @@
 mod config {
     use std::sync::Arc;
     use tokio_rustls::rustls::{
-        pki_types::{CertificateDer, PrivateKeyDer},
         ServerConfig,
+        pki_types::{CertificateDer, PrivateKeyDer},
     };
 
     const CERT: &[u8] = include_bytes!("local.cert");

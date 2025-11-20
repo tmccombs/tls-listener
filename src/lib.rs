@@ -21,14 +21,14 @@ use pin_project_lite::pin_project;
 #[cfg(feature = "rt")]
 pub use spawning_handshake::SpawningHandshakes;
 use std::fmt::Debug;
-use std::future::{poll_fn, Future};
+use std::future::{Future, poll_fn};
 use std::num::NonZeroUsize;
 use std::pin::Pin;
-use std::task::{ready, Context, Poll};
+use std::task::{Context, Poll, ready};
 use std::time::Duration;
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::time::{timeout, Timeout};
+use tokio::time::{Timeout, timeout};
 #[cfg(feature = "native-tls")]
 pub use tokio_native_tls as native_tls;
 #[cfg(feature = "openssl")]
@@ -48,7 +48,7 @@ pub use accept::*;
 mod axum;
 
 /// Default number of connections to accept in a batch before trying to
-pub const DEFAULT_ACCEPT_BATCH_SIZE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(64) };
+pub const DEFAULT_ACCEPT_BATCH_SIZE: NonZeroUsize = NonZeroUsize::new(64).unwrap();
 /// Default timeout for the TLS handshake.
 pub const DEFAULT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 

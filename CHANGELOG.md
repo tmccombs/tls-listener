@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.1] - 2025-11-20
+
+### Features
+
+- Add listener() method
+
+- Accept_generator fn
+
+- Add AsyncListener trait
+
+- Axum support
+
+
 ## [0.10.3]
 
 ### Changes

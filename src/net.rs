@@ -51,6 +51,7 @@ impl AsyncAccept for UnixListener {
     }
 }
 
+#[cfg(unix)]
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio-net")))]
 impl AsyncListener for UnixListener {
     #[inline]

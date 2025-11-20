@@ -1,15 +1,15 @@
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
-use hyper::{body::Body, Request, Response};
+use hyper::{Request, Response, body::Body};
 use hyper_util::rt::tokio::TokioIo;
 use std::convert::Infallible;
 use std::num::NonZeroUsize;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::net::TcpListener;
 
 mod tls_config;
-use tls_config::{tls_acceptor, tls_acceptor2, Acceptor};
+use tls_config::{Acceptor, tls_acceptor, tls_acceptor2};
 use tokio::sync::mpsc;
 
 /// To view the current certificate try:

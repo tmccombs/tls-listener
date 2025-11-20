@@ -9,7 +9,7 @@ macro_rules! assert_err {
 }
 
 macro_rules! assert_ascii_eq {
-    ($one:expr, $two:expr) => {
+    ($one:expr, $two:expr_2021) => {
         assert_eq!(
             ::std::str::from_utf8(&*$one).unwrap(),
             ::std::str::from_utf8(&*$two).unwrap()

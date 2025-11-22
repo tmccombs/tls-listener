@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.2] - 2025-11-22
+
+### Fixed
+
+- Add cfg cond for unix on UnixListener (#64)
+
+
 ## [0.11.1] - 2025-11-20
 
 ### Features

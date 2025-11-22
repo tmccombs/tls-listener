@@ -1,19 +1,50 @@
 name: Release
 on:
-  release:
-    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        required: true
+
+
+env:
+  VERSION: "${{ inputs.version }}"
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v5
-      - name: Install toolchain
+      - name: checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - name: Git setup
         run: |
-          rustup toolchain install stable --profile minimal
-          rustup default stable
-      - name: Publish
-        run: cargo publish
+          git config user.name "github-actions[bot]"
+          git config user.email "	41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Update changelog
+        uses: orhun/git-cliff-action@d77b37db2e3f7398432d34b72a12aa3e2ba87e51 # v4.6.0
+        with:
+          args: "--unreleased"
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          OUTPUT: release.md
+          GIT_CLIFF_PREPEND: CHANGELOG.md
+          GIT_CLIFF_TAG: "v${{ inputs.version }}"
+          GITHUB_REPO: ${{ github.repository }}
+      - name: Update Cargo.toml
+        run: |
+          awk -i inplace -f update-version.awk Cargo.toml
+      - name: Commit and push changes
+        run: |
+          set +e
+          git add CHANGELOG.md Cargo.toml
+          git commit -m "Update version to ${VERSION}"
+          git push "https://github.com/${GITHUB_REPOSITORY}.git" main
+      - name: Create release
+        run: |
+          gh release create --notes-file release.md "v${VERSION}"
+
 

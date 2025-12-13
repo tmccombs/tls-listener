@@ -36,7 +36,7 @@ jobs:
           GITHUB_REPO: ${{ github.repository }}
       - name: Update Cargo.toml
         run: |
-          awk -i inplace -f update-version.awk Cargo.toml
+          awk -i inplace -f tools/update-version.awk Cargo.toml
       - name: Commit and push changes
         run: |
           set +e

@@ -46,5 +46,7 @@ jobs:
       - name: Create release
         run: |
           gh release create --notes-file release.md "v${VERSION}"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
 

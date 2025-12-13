@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0] - 2025-12-13
+
+### Features
+
+- Add cooldown to dependabot
+
+
+### Miscellaneous Tasks
+
+- Update to 2024 edition
+
+- Run CI for windows-latest
+
+- Add cfg cond for unix on UnixListener
+
+- Bump actions/checkout from 5 to 6
+
+
+### Build
+
+- Rename release as publish
+
+- Add action to do a release
+
+- Fix awk script
+
+
 ## [0.11.2] - 2025-11-22
 
 ### Fixed

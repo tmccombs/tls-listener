@@ -26,7 +26,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "	41898282+github-actions[bot]@users.noreply.github.com"
       - name: Update changelog
-        uses: orhun/git-cliff-action@d77b37db2e3f7398432d34b72a12aa3e2ba87e51 # v4.6.0
+        uses: orhun/git-cliff-action@e16f179f0be49ecdfe63753837f20b9531642772 # v4.7.0
         with:
           args: "--unreleased"
         env:
